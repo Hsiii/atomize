@@ -1,13 +1,6 @@
 import { useEffect } from 'react';
 import type { JSX } from 'react';
-import {
-    createRootRoute,
-    createRoute,
-    createRouter,
-    useNavigate,
-} from '@tanstack/react-router';
 
-import RootLayout from './App';
 import { useAppContext } from './app-context';
 import { MultiplayerGameScreen } from './components/game/MultiplayerGameScreen';
 import { SingleGameScreen } from './components/game/SingleGameScreen';
@@ -23,15 +16,9 @@ import {
     isTutorialComplete,
 } from './lib/app-helpers';
 
-// Re-export for use outside router.
-
-// ---------------------------------------------------------------------------
-// Route page components
-// ---------------------------------------------------------------------------
-
 function MenuPage(): JSX.Element {
-    const { session, isGuest, localCpuGame, multiplayerGame } = useAppContext();
-    const navigate = useNavigate();
+    const { session, isGuest, localCpuGame, multiplayerGame, navigateTo } =
+        useAppContext();
     const needsTutorial = !isTutorialComplete();
 
     const toastId = localCpuGame.isInRoom ? 0 : multiplayerGame.lobbyToast.id;
@@ -44,22 +31,22 @@ function MenuPage(): JSX.Element {
             isGuest={isGuest || !session}
             needsTutorial={needsTutorial}
             onOpenAccount={() => {
-                detachPromise(navigate({ to: '/account' }));
+                navigateTo('/account');
             }}
             onOpenAuth={() => {
-                detachPromise(navigate({ to: '/login' }));
+                navigateTo('/login');
             }}
             onOpenBattle={() => {
-                detachPromise(navigate({ to: '/battle' }));
+                navigateTo('/battle');
             }}
             onOpenLeaderboard={() => {
-                detachPromise(navigate({ to: '/leaderboard' }));
+                navigateTo('/leaderboard');
             }}
             onOpenSolo={() => {
-                detachPromise(navigate({ to: '/solo' }));
+                navigateTo('/solo');
             }}
             onOpenTutorial={() => {
-                detachPromise(navigate({ to: '/tutorial' }));
+                navigateTo('/tutorial');
             }}
             toastId={toastId}
             toastMessage={toastMessage}
@@ -88,14 +75,13 @@ function TutorialPage(): JSX.Element {
 }
 
 function SoloPregamePage(): JSX.Element {
-    const { soloGame } = useAppContext();
-    const navigate = useNavigate();
+    const { soloGame, navigateTo } = useAppContext();
 
     return (
         <SoloPregameScreen
             bestScore={soloGame.bestScore}
             onBack={() => {
-                detachPromise(navigate({ to: '/' }));
+                navigateTo('/');
             }}
             onStart={() => {
                 soloGame.startSingleGame();
@@ -133,8 +119,8 @@ function SoloPlayPage(): JSX.Element {
 }
 
 function BattlePickerPage(): JSX.Element {
-    const { localCpuGame, multiplayerGame, playerName } = useAppContext();
-    const navigate = useNavigate();
+    const { localCpuGame, multiplayerGame, navigateTo, playerName } =
+        useAppContext();
 
     const activeMenuGame = localCpuGame.isInRoom
         ? {
@@ -161,7 +147,7 @@ function BattlePickerPage(): JSX.Element {
             isInRoom={activeMenuGame.isInRoom}
             isOpponentReady={activeMenuGame.isOpponentReady}
             onBack={() => {
-                detachPromise(navigate({ to: '/' }));
+                navigateTo('/');
             }}
             onInvitePlayer={(targetPlayerId) => {
                 detachPromise(
@@ -235,14 +221,13 @@ function BattlePlayPage(): JSX.Element {
 }
 
 function LoginPage(): JSX.Element | undefined {
-    const { session } = useAppContext();
-    const navigate = useNavigate();
+    const { navigateTo, session } = useAppContext();
 
     useEffect(() => {
         if (session) {
-            detachPromise(navigate({ to: '/' }));
+            navigateTo('/');
         }
-    }, [session, navigate]);
+    }, [session, navigateTo]);
 
     if (session) {
         return undefined;
@@ -252,24 +237,23 @@ function LoginPage(): JSX.Element | undefined {
         <AuthScreen
             initialMode='login'
             onAuthSuccess={() => {
-                detachPromise(navigate({ to: '/' }));
+                navigateTo('/');
             }}
             onBack={() => {
-                detachPromise(navigate({ to: '/' }));
+                navigateTo('/');
             }}
         />
     );
 }
 
 function SignupPage(): JSX.Element | undefined {
-    const { session } = useAppContext();
-    const navigate = useNavigate();
+    const { navigateTo, session } = useAppContext();
 
     useEffect(() => {
         if (session) {
-            detachPromise(navigate({ to: '/' }));
+            navigateTo('/');
         }
-    }, [session, navigate]);
+    }, [session, navigateTo]);
 
     if (session) {
         return undefined;
@@ -279,25 +263,24 @@ function SignupPage(): JSX.Element | undefined {
         <AuthScreen
             initialMode='signup'
             onAuthSuccess={() => {
-                detachPromise(navigate({ to: '/' }));
+                navigateTo('/');
             }}
             onBack={() => {
-                detachPromise(navigate({ to: '/' }));
+                navigateTo('/');
             }}
         />
     );
 }
 
 function AccountPage(): JSX.Element | undefined {
-    const { session, playerName, handleEditName, handleLogout } =
+    const { handleEditName, handleLogout, navigateTo, playerName, session } =
         useAppContext();
-    const navigate = useNavigate();
 
     useEffect(() => {
         if (!session) {
-            detachPromise(navigate({ to: '/' }));
+            navigateTo('/');
         }
-    }, [session, navigate]);
+    }, [session, navigateTo]);
 
     if (!session) {
         return undefined;
@@ -306,12 +289,12 @@ function AccountPage(): JSX.Element | undefined {
     return (
         <AccountScreen
             onBack={() => {
-                detachPromise(navigate({ to: '/' }));
+                navigateTo('/');
             }}
             onEditName={handleEditName}
             onLogout={() => {
                 handleLogout();
-                detachPromise(navigate({ to: '/' }));
+                navigateTo('/');
             }}
             playerName={playerName}
             userId={session.user.id}
@@ -320,13 +303,12 @@ function AccountPage(): JSX.Element | undefined {
 }
 
 function LeaderboardPage(): JSX.Element {
-    const { playerName, leaderboardData } = useAppContext();
-    const navigate = useNavigate();
+    const { leaderboardData, navigateTo, playerName } = useAppContext();
 
     return (
         <LeaderboardScreen
             onBack={() => {
-                detachPromise(navigate({ to: '/' }));
+                navigateTo('/');
             }}
             playerName={playerName}
             prefetchedData={leaderboardData}
@@ -334,100 +316,49 @@ function LeaderboardPage(): JSX.Element {
     );
 }
 
-// ---------------------------------------------------------------------------
-// Route tree
-// ---------------------------------------------------------------------------
+export function AppRoutes(): JSX.Element {
+    const { pathname } = useAppContext();
 
-const rootRoute = createRootRoute({
-    component: RootLayout,
-});
+    switch (pathname) {
+        case '/tutorial': {
+            return <TutorialPage />;
+        }
 
-const menuRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: '/',
-    component: MenuPage,
-});
+        case '/solo': {
+            return <SoloPregamePage />;
+        }
 
-const tutorialRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: 'tutorial',
-    component: TutorialPage,
-});
+        case '/solo/play': {
+            return <SoloPlayPage />;
+        }
 
-const soloRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: 'solo',
-});
+        case '/battle': {
+            return <BattlePickerPage />;
+        }
 
-const soloIndexRoute = createRoute({
-    getParentRoute: () => soloRoute,
-    path: '/',
-    component: SoloPregamePage,
-});
+        case '/battle/play': {
+            return <BattlePlayPage />;
+        }
 
-const soloPlayRoute = createRoute({
-    getParentRoute: () => soloRoute,
-    path: 'play',
-    component: SoloPlayPage,
-});
+        case '/login': {
+            return <LoginPage />;
+        }
 
-const battleRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: 'battle',
-});
+        case '/signup': {
+            return <SignupPage />;
+        }
 
-const battleIndexRoute = createRoute({
-    getParentRoute: () => battleRoute,
-    path: '/',
-    component: BattlePickerPage,
-});
+        case '/account': {
+            return <AccountPage />;
+        }
 
-const battlePlayRoute = createRoute({
-    getParentRoute: () => battleRoute,
-    path: 'play',
-    component: BattlePlayPage,
-});
+        case '/leaderboard': {
+            return <LeaderboardPage />;
+        }
 
-const loginRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: 'login',
-    component: LoginPage,
-});
-
-const signupRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: 'signup',
-    component: SignupPage,
-});
-
-const accountRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: 'account',
-    component: AccountPage,
-});
-
-const leaderboardRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: 'leaderboard',
-    component: LeaderboardPage,
-});
-
-export const router = createRouter({
-    routeTree: rootRoute.addChildren([
-        menuRoute,
-        tutorialRoute,
-        soloRoute.addChildren([soloIndexRoute, soloPlayRoute]),
-        battleRoute.addChildren([battleIndexRoute, battlePlayRoute]),
-        loginRoute,
-        signupRoute,
-        accountRoute,
-        leaderboardRoute,
-    ]),
-});
-
-declare module '@tanstack/react-router' {
-    interface Register {
-        router: typeof router;
+        default: {
+            return <MenuPage />;
+        }
     }
 }
 

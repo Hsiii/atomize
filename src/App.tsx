@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
-import { Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 
 import { AppProvider } from './app-context';
 import type { AppContextValue } from './app-context';
@@ -29,6 +28,7 @@ import {
 } from './lib/app-helpers';
 import type { Database } from './lib/database.types';
 import { GOOGLE_AUTH_POPUP_NAME, supabaseAuthClient } from './lib/supabase';
+import { AppRoutes } from './router';
 
 type SeoContent = {
     description: string;
@@ -288,12 +288,32 @@ function deriveScreen(pathname: string): Screen {
 }
 
 export default function App(): JSX.Element {
-    const location = useLocation();
-    const navigate = useNavigate();
-    const screen = deriveScreen(location.pathname);
+    const [pathname, setPathname] = useState(
+        () => globalThis.location.pathname
+    );
+    const screen = deriveScreen(pathname);
 
-    const navigateRef = useRef<ReturnType<typeof useNavigate>>(navigate);
-    navigateRef.current = navigate;
+    const navigateTo = useCallback((targetPath: string) => {
+        if (globalThis.location.pathname !== targetPath) {
+            globalThis.history.pushState({}, '', targetPath);
+        }
+
+        setPathname(globalThis.location.pathname);
+    }, []);
+
+    const navigateToRef = useRef(navigateTo);
+    navigateToRef.current = navigateTo;
+
+    useEffect(() => {
+        function handlePopState() {
+            setPathname(globalThis.location.pathname);
+        }
+
+        globalThis.addEventListener('popstate', handlePopState);
+        return () => {
+            globalThis.removeEventListener('popstate', handlePopState);
+        };
+    }, []);
 
     const [pendingTransitionScreen, setPendingTransitionScreen] = useState<
         Screen | undefined
@@ -304,9 +324,7 @@ export default function App(): JSX.Element {
         if (nextScreen === 'multi-game' || nextScreen === 'single') {
             setPendingTransitionScreen(nextScreen);
         } else {
-            detachPromise(
-                navigateRef.current({ to: SCREEN_TO_PATH[nextScreen] })
-            );
+            navigateToRef.current(SCREEN_TO_PATH[nextScreen]);
         }
     }, []);
 
@@ -486,7 +504,7 @@ export default function App(): JSX.Element {
             title: seoText.defaultTitle,
         };
 
-        switch (location.pathname) {
+        switch (pathname) {
             case '/': {
                 seoContent = {
                     description: seoText.menuDescription,
@@ -559,7 +577,7 @@ export default function App(): JSX.Element {
         }
 
         applySeoContent(seoContent);
-    }, [location.pathname]);
+    }, [pathname]);
 
     async function handleEditName(name: string): Promise<string | undefined> {
         const normalizedNextName = normalizePlayerName(name);
@@ -657,13 +675,13 @@ export default function App(): JSX.Element {
         soloGame.resetSoloGame();
         tutorialGame.resetTutorialGame();
         setLeaderboardData(undefined);
-        detachPromise(navigate({ to: '/' }));
+        navigateTo('/');
     }
 
     function handleTutorialReturn() {
         markTutorialComplete();
         tutorialGame.resetTutorialGame();
-        detachPromise(navigate({ to: '/' }));
+        navigateTo('/');
     }
 
     function handleLogout() {
@@ -685,6 +703,7 @@ export default function App(): JSX.Element {
     const contextValue: AppContextValue = {
         session,
         isGuest,
+        pathname,
         playerName,
         playerLevel,
         soloGame,
@@ -695,6 +714,7 @@ export default function App(): JSX.Element {
         handleEditName,
         handleLogout,
         handleTutorialReturn,
+        navigateTo,
         returnToMenu,
     };
 
@@ -705,7 +725,7 @@ export default function App(): JSX.Element {
 
     function handleAcceptInvitation() {
         detachPromise(multiplayerGame.handleAcceptInvitation());
-        detachPromise(navigate({ to: '/battle' }));
+        navigateTo('/battle');
     }
 
     function handleDeclineInvitation() {
@@ -714,7 +734,7 @@ export default function App(): JSX.Element {
 
     return (
         <AppProvider value={contextValue}>
-            <Outlet />
+            <AppRoutes />
             {pendingTransitionScreen ? (
                 <BurstTransition
                     onComplete={() => {
@@ -724,9 +744,7 @@ export default function App(): JSX.Element {
                     onNavigate={() => {
                         const targetScreen = pendingTransitionScreen;
                         // Execute actual navigation while the screen is completely white/wiped.
-                        detachPromise(
-                            navigate({ to: SCREEN_TO_PATH[targetScreen] })
-                        );
+                        navigateTo(SCREEN_TO_PATH[targetScreen]);
                     }}
                 />
             ) : undefined}
