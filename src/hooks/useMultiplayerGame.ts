@@ -916,7 +916,7 @@ export function useMultiplayerGame({
         let timeoutId: number | undefined;
 
         try {
-            const response = await Promise.race<'ok' | 'timed out' | 'error'>([
+            const response = await Promise.race([
                 channel.send({
                     type: 'broadcast',
                     event: message.type,
