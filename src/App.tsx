@@ -10,7 +10,6 @@ import type { PendingInvitation, Screen } from './app-state';
 import { ActionButton } from './components/game/ui/ActionButton';
 import { fetchLeaderboardData } from './components/menu/LeaderboardScreen';
 import type { LeaderboardEntry } from './components/menu/LeaderboardScreen';
-import { BlobTransition } from './components/ui/BlobTransition';
 import { BurstTransition } from './components/ui/BurstTransition';
 import { useLocalCpuGame } from './hooks/useLocalCpuGame';
 import { useMultiplayerGame } from './hooks/useMultiplayerGame';
@@ -299,33 +298,6 @@ export default function App(): JSX.Element {
     const [pendingTransitionScreen, setPendingTransitionScreen] = useState<
         Screen | undefined
     >(undefined);
-
-    const [pendingBlobTransition, setPendingBlobTransition] = useState<
-        | {
-              clientX: number;
-              clientY: number;
-              colorKey: string;
-              targetPath: string;
-          }
-        | undefined
-    >(undefined);
-
-    const startBlobTransition = useCallback(
-        (
-            targetPath: string,
-            clientX: number,
-            clientY: number,
-            colorKey: string
-        ) => {
-            setPendingBlobTransition({
-                clientX,
-                clientY,
-                colorKey,
-                targetPath,
-            });
-        },
-        []
-    );
 
     const onScreenChange = useCallback((nextScreen: Screen) => {
         // Intercept transitions strictly requiring the burst effect.
@@ -724,7 +696,6 @@ export default function App(): JSX.Element {
         handleLogout,
         handleTutorialReturn,
         returnToMenu,
-        startBlobTransition,
     };
 
     const pendingInvitation =
@@ -744,23 +715,6 @@ export default function App(): JSX.Element {
     return (
         <AppProvider value={contextValue}>
             <Outlet />
-            {pendingBlobTransition ? (
-                <BlobTransition
-                    clientX={pendingBlobTransition.clientX}
-                    clientY={pendingBlobTransition.clientY}
-                    colorKey={pendingBlobTransition.colorKey}
-                    onComplete={() => {
-                        setPendingBlobTransition(undefined);
-                    }}
-                    onMiddle={() => {
-                        detachPromise(
-                            navigateRef.current({
-                                to: pendingBlobTransition.targetPath,
-                            })
-                        );
-                    }}
-                />
-            ) : undefined}
             {pendingTransitionScreen ? (
                 <BurstTransition
                     onComplete={() => {
