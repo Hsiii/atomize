@@ -33,7 +33,6 @@
     },
     "dependencies": {
         "@supabase/supabase-js": "^2.49.4",
-        "@tanstack/react-router": "^1.168.2",
         "@vercel/analytics": "^2.0.1",
         "lucide-react": "^0.577.0",
         "react": "^19.0.0",

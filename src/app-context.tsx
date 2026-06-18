@@ -11,6 +11,7 @@ import type { useTutorialGame } from './hooks/useTutorialGame';
 export type AppContextValue = {
     session: Session | undefined;
     isGuest: boolean;
+    pathname: string;
     playerName: string;
     playerLevel: number | undefined;
     soloGame: ReturnType<typeof useSoloGame>;
@@ -21,6 +22,7 @@ export type AppContextValue = {
     handleEditName: (name: string) => Promise<string | undefined>;
     handleLogout: () => void;
     handleTutorialReturn: () => void;
+    navigateTo: (targetPath: string) => void;
     returnToMenu: () => Promise<void>;
 };
 
