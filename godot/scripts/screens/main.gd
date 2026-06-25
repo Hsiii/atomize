@@ -21,6 +21,10 @@ const COLOR_BUTTON_DISABLED := Color(0.094, 0.306, 0.467, 0.12)
 const HOME_BLOB_SIZE := 144.0
 const HOME_BLOB_GAP := 24.0
 const HOME_MENU_BUTTON_SIZE := 44.0
+const SOLO_TARGET_SIZE := 296.0
+const SOLO_KEY_SIZE := 88.0
+const SOLO_KEY_GAP := 4.0
+const SOLO_CONTROL_BOTTOM_MARGIN := 12.0
 const PRIME_COMPENSATION_FACTORS := {
 	2: 0.2,
 	3: 0.2,
@@ -68,6 +72,7 @@ var result_label: Label
 var prime_grid: GridContainer
 var submit_button: Button
 var backspace_button: Button
+var timer_bar: ProgressBar
 
 func _ready() -> void:
 	best_score = _load_best_score()
@@ -289,76 +294,100 @@ func _clear_screen() -> void:
 		child.queue_free()
 
 func _build_solo_layout() -> void:
-	_build_base_layout()
+	_clear_screen()
 
-	var header := HBoxContainer.new()
-	header.add_theme_constant_override("separation", 12)
-	content.add_child(header)
+	var viewport_size := get_viewport_rect().size
 
-	stage_label = _make_label("", 16, HORIZONTAL_ALIGNMENT_LEFT)
-	stage_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(stage_label)
+	var background := ColorRect.new()
+	background.color = COLOR_PAGE_BG
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(background)
 
-	timer_label = _make_label("", 16, HORIZONTAL_ALIGNMENT_RIGHT)
-	timer_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(timer_label)
+	var pause_button := _make_icon_text_button("II", COLOR_PAGE_BG, COLOR_PRIMARY_STRONG, 24)
+	pause_button.custom_minimum_size = Vector2(44, 44)
+	pause_button.position = Vector2(12, 12)
+	pause_button.size = Vector2(44, 44)
+	pause_button.add_theme_stylebox_override("normal", _make_circle_style(Color.TRANSPARENT, 22, Color.TRANSPARENT, 0))
+	pause_button.add_theme_stylebox_override("hover", _make_circle_style(Color(0.086, 0.541, 0.678, 0.08), 22, Color.TRANSPARENT, 0))
+	pause_button.add_theme_stylebox_override("pressed", _make_circle_style(Color(0.086, 0.541, 0.678, 0.14), 22, Color.TRANSPARENT, 0))
+	pause_button.pressed.connect(_pause_game)
+	add_child(pause_button)
 
-	score_label = _make_label("", 16, HORIZONTAL_ALIGNMENT_CENTER)
-	content.add_child(score_label)
+	timer_bar = ProgressBar.new()
+	timer_bar.show_percentage = false
+	timer_bar.min_value = 0
+	timer_bar.max_value = SOLO_DURATION_SECONDS
+	timer_bar.value = solo_time_left
+	timer_bar.position = Vector2(96, 28)
+	timer_bar.size = Vector2(viewport_size.x - 192.0, 8)
+	timer_bar.add_theme_stylebox_override("background", _make_bar_style(Color(0.086, 0.541, 0.678, 0.16), 4))
+	timer_bar.add_theme_stylebox_override("fill", _make_bar_style(COLOR_PRIMARY_STRONG, 4))
+	add_child(timer_bar)
 
-	target_label = _make_label("", 64, HORIZONTAL_ALIGNMENT_CENTER)
-	target_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	target_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	target_label.add_theme_color_override("font_color", COLOR_INK)
-	content.add_child(target_label)
+	score_label = _make_absolute_label("", 14, COLOR_PRIMARY, 800)
+	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	score_label.position = Vector2(viewport_size.x - 84.0, 16)
+	score_label.size = Vector2(68, 24)
+	add_child(score_label)
 
-	factors_label = _make_label("", 16, HORIZONTAL_ALIGNMENT_CENTER)
-	factors_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	content.add_child(factors_label)
+	var target_blob := Panel.new()
+	target_blob.size = Vector2(SOLO_TARGET_SIZE, SOLO_TARGET_SIZE)
+	target_blob.position = Vector2((viewport_size.x - SOLO_TARGET_SIZE) / 2.0, 120)
+	target_blob.add_theme_stylebox_override(
+		"panel",
+		_make_circle_style(COLOR_PRIMARY_STRONG, SOLO_TARGET_SIZE / 2.0, COLOR_BORDER_INVERSE_SOFT, 2)
+	)
+	add_child(target_blob)
 
-	queue_label = _make_label("", 18, HORIZONTAL_ALIGNMENT_CENTER)
-	queue_label.add_theme_color_override("font_color", COLOR_PRIMARY_STRONG)
-	content.add_child(queue_label)
+	target_label = _make_absolute_label("", 72, COLOR_TEXT_INVERSE, 900)
+	target_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	target_blob.add_child(target_label)
 
-	result_label = _make_label("", 15, HORIZONTAL_ALIGNMENT_CENTER)
-	content.add_child(result_label)
+	queue_label = _make_absolute_label("", 18, COLOR_PRIMARY_STRONG, 800)
+	queue_label.position = Vector2(24, 456)
+	queue_label.size = Vector2(viewport_size.x - 48.0, 32)
+	add_child(queue_label)
+
+	result_label = _make_absolute_label("", 14, COLOR_PRIMARY, 800)
+	result_label.position = Vector2(24, 492)
+	result_label.size = Vector2(viewport_size.x - 48.0, 28)
+	add_child(result_label)
+
+	factors_label = _make_absolute_label("", 12, COLOR_INK, 700)
+	factors_label.position = Vector2(24, 520)
+	factors_label.size = Vector2(viewport_size.x - 48.0, 24)
+	add_child(factors_label)
 
 	prime_grid = GridContainer.new()
 	prime_grid.columns = 3
-	prime_grid.add_theme_constant_override("h_separation", 12)
-	prime_grid.add_theme_constant_override("v_separation", 12)
-	prime_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	prime_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	content.add_child(prime_grid)
+	prime_grid.add_theme_constant_override("h_separation", int(SOLO_KEY_GAP))
+	prime_grid.add_theme_constant_override("v_separation", int(SOLO_KEY_GAP))
+	prime_grid.position = Vector2(12, viewport_size.y - (SOLO_KEY_SIZE * 3.0) - (SOLO_KEY_GAP * 2.0) - SOLO_CONTROL_BOTTOM_MARGIN)
+	prime_grid.size = Vector2((SOLO_KEY_SIZE * 3.0) + (SOLO_KEY_GAP * 2.0), (SOLO_KEY_SIZE * 3.0) + (SOLO_KEY_GAP * 2.0))
+	add_child(prime_grid)
 
 	for prime in Game.get_playable_stage_primes():
-		var button := Button.new()
-		button.text = str(prime)
-		button.custom_minimum_size = Vector2(88, 64)
-		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		button.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		button.add_theme_font_size_override("font_size", 24)
-		button.add_theme_stylebox_override("normal", _make_button_style(COLOR_PRIMARY_STRONG))
-		button.add_theme_stylebox_override("hover", _make_button_style(COLOR_PRIMARY_STRONG.lightened(0.08)))
-		button.add_theme_stylebox_override("pressed", _make_button_style(COLOR_PRIMARY_STRONG.darkened(0.12)))
+		var button := _make_prime_key_button(str(prime))
 		button.pressed.connect(_queue_prime.bind(int(prime)))
 		prime_grid.add_child(button)
 
-	var action_row := HBoxContainer.new()
-	action_row.add_theme_constant_override("separation", 12)
-	content.add_child(action_row)
+	var action_x := prime_grid.position.x + prime_grid.size.x + SOLO_KEY_GAP
+	backspace_button = _make_icon_text_button("⌫", COLOR_PRIMARY_STRONG, COLOR_TEXT_INVERSE, 28)
+	backspace_button.position = Vector2(action_x, prime_grid.position.y)
+	backspace_button.size = Vector2(SOLO_KEY_SIZE, SOLO_KEY_SIZE)
+	backspace_button.add_theme_stylebox_override("disabled", _make_circle_style(COLOR_PRIMARY_STRONG, SOLO_KEY_SIZE / 2.0, Color.TRANSPARENT, 0))
+	backspace_button.pressed.connect(_backspace_queue)
+	add_child(backspace_button)
 
-	backspace_button = _make_action_button("Backspace", _backspace_queue, COLOR_PRIMARY)
-	backspace_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	action_row.add_child(backspace_button)
-
-	submit_button = _make_action_button("Submit", _submit_queue, COLOR_PRIMARY_STRONG)
-	submit_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	action_row.add_child(submit_button)
-
-	var pause_button := _make_action_button("Pause", _pause_game, COLOR_SECONDARY)
-	pause_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	action_row.add_child(pause_button)
+	submit_button = _make_icon_text_button("↵", COLOR_PRIMARY_STRONG, COLOR_TEXT_INVERSE, 34)
+	submit_button.position = Vector2(action_x, prime_grid.position.y + SOLO_KEY_SIZE + SOLO_KEY_GAP)
+	submit_button.size = Vector2(SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP)
+	submit_button.add_theme_stylebox_override("normal", _make_pill_style(COLOR_PRIMARY_STRONG, SOLO_KEY_SIZE / 2.0))
+	submit_button.add_theme_stylebox_override("hover", _make_pill_style(COLOR_PRIMARY_STRONG.lightened(0.06), SOLO_KEY_SIZE / 2.0))
+	submit_button.add_theme_stylebox_override("pressed", _make_pill_style(COLOR_PRIMARY_STRONG.darkened(0.08), SOLO_KEY_SIZE / 2.0))
+	submit_button.add_theme_stylebox_override("disabled", _make_pill_style(COLOR_PRIMARY_STRONG, SOLO_KEY_SIZE / 2.0))
+	submit_button.pressed.connect(_submit_queue)
+	add_child(submit_button)
 
 func _build_pause_layout() -> void:
 	_build_base_layout()
@@ -389,18 +418,14 @@ func _render_solo() -> void:
 		return
 
 	var stage: Dictionary = solo_state["currentStage"]
-	stage_label.text = "Stage %s" % [int(solo_state["clearedStages"]) + 1]
-	timer_label.text = "Time %s" % ceili(solo_time_left)
-	score_label.text = "HP %s / %s   Score %s   Combo %s" % [
-		int(solo_state["hp"]),
-		Game.SOLO_MAX_HP,
-		int(solo_state["score"]),
-		int(solo_state["combo"]),
-	]
+	timer_bar.value = solo_time_left
+	score_label.text = "%s pt" % int(solo_state["score"])
 	target_label.text = str(stage["remainingValue"])
-	factors_label.text = "Factors left: %s" % _join_numbers(stage["remainingFactors"])
-	queue_label.text = "Queue: %s" % (_join_numbers(prime_queue) if not prime_queue.is_empty() else "-")
+	factors_label.visible = false
+	queue_label.text = _join_numbers(prime_queue)
+	queue_label.visible = not prime_queue.is_empty()
 	result_label.text = last_result_text
+	result_label.visible = last_result_text != ""
 
 	var is_busy := not resolving_queue.is_empty()
 	submit_button.disabled = is_busy or prime_queue.is_empty()
@@ -667,6 +692,32 @@ func _make_dropdown_button(text: String, callback: Callable) -> Button:
 	button.pressed.connect(callback)
 	return button
 
+func _make_prime_key_button(text: String) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.custom_minimum_size = Vector2(SOLO_KEY_SIZE, SOLO_KEY_SIZE)
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_font_size_override("font_size", 32)
+	button.add_theme_color_override("font_color", Color(0.38, 0.43, 0.49, 1.0))
+	button.add_theme_stylebox_override("normal", _make_circle_style(Color(0.875, 0.898, 0.929, 1.0), SOLO_KEY_SIZE / 2.0, Color.TRANSPARENT, 0))
+	button.add_theme_stylebox_override("hover", _make_circle_style(Color(0.835, 0.867, 0.906, 1.0), SOLO_KEY_SIZE / 2.0, Color.TRANSPARENT, 0))
+	button.add_theme_stylebox_override("pressed", _make_circle_style(Color(0.792, 0.831, 0.875, 1.0), SOLO_KEY_SIZE / 2.0, Color.TRANSPARENT, 0))
+	button.add_theme_stylebox_override("disabled", _make_circle_style(COLOR_BUTTON_DISABLED, SOLO_KEY_SIZE / 2.0, Color.TRANSPARENT, 0))
+	return button
+
+func _make_icon_text_button(text: String, background_color: Color, text_color: Color, font_size: int) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.custom_minimum_size = Vector2(SOLO_KEY_SIZE, SOLO_KEY_SIZE)
+	button.focus_mode = Control.FOCUS_NONE
+	button.add_theme_font_size_override("font_size", font_size)
+	button.add_theme_color_override("font_color", text_color)
+	button.add_theme_stylebox_override("normal", _make_circle_style(background_color, SOLO_KEY_SIZE / 2.0, Color.TRANSPARENT, 0))
+	button.add_theme_stylebox_override("hover", _make_circle_style(background_color.lightened(0.05), SOLO_KEY_SIZE / 2.0, Color.TRANSPARENT, 0))
+	button.add_theme_stylebox_override("pressed", _make_circle_style(background_color.darkened(0.08), SOLO_KEY_SIZE / 2.0, Color.TRANSPARENT, 0))
+	button.add_theme_stylebox_override("disabled", _make_circle_style(COLOR_BUTTON_DISABLED, SOLO_KEY_SIZE / 2.0, Color.TRANSPARENT, 0))
+	return button
+
 func _make_absolute_label(text: String, font_size: int, color: Color, weight: int) -> Label:
 	var label := Label.new()
 	label.text = text
@@ -724,6 +775,18 @@ func _make_button_style(color: Color) -> StyleBoxFlat:
 	style.content_margin_top = 8
 	style.content_margin_bottom = 8
 	return style
+
+func _make_bar_style(color: Color, radius: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.corner_radius_top_left = radius
+	style.corner_radius_top_right = radius
+	style.corner_radius_bottom_right = radius
+	style.corner_radius_bottom_left = radius
+	return style
+
+func _make_pill_style(color: Color, radius: float) -> StyleBoxFlat:
+	return _make_circle_style(color, radius, Color.TRANSPARENT, 0)
 
 func _make_transparent_button_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
