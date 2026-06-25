@@ -49,6 +49,7 @@ const THEME_BUTTON_SURFACE := "AtomButtonSurface"
 const THEME_BUTTON_TRANSPARENT := "AtomButtonTransparent"
 const THEME_BUTTON_KEYPAD := "AtomButtonKeypad"
 const THEME_BUTTON_KEY_ACTION := "AtomButtonKeyAction"
+const THEME_BUTTON_ICON_SURFACE := "AtomButtonIconSurface"
 const THEME_BUTTON_SMALL_PRIMARY := "AtomButtonSmallPrimary"
 const THEME_BUTTON_SMALL_SURFACE := "AtomButtonSmallSurface"
 const THEME_BUTTON_PAGE_PRIMARY := "AtomButtonPagePrimary"
@@ -95,6 +96,7 @@ var battle_snapshot: Dictionary
 var battle_prime_queue: Array[int] = []
 var battle_bot_elapsed := 0.0
 var battle_result_text := ""
+var icon_texture_cache: Dictionary = {}
 
 var root_margin: MarginContainer
 var content: VBoxContainer
@@ -684,7 +686,6 @@ func _build_battle_game_layout() -> void:
 	backspace_button = _make_icon_text_button("", COLOR_PRIMARY_STRONG, COLOR_INK, 28, "backspace")
 	backspace_button.position = Vector2(action_x, prime_grid.position.y)
 	backspace_button.size = Vector2(SOLO_KEY_SIZE, SOLO_KEY_SIZE)
-	backspace_button.add_theme_stylebox_override("disabled", _make_button_style(COLOR_BUTTON_DISABLED))
 	_add_delete_icon(backspace_button, SOLO_KEY_SIZE, SOLO_KEY_SIZE, COLOR_INK)
 	backspace_button.pressed.connect(_backspace_battle_queue)
 	add_child(backspace_button)
@@ -692,10 +693,6 @@ func _build_battle_game_layout() -> void:
 	submit_button = _make_icon_text_button("", COLOR_PRIMARY_STRONG, COLOR_INK, 34, "submit")
 	submit_button.position = Vector2(action_x, prime_grid.position.y + SOLO_KEY_SIZE + SOLO_KEY_GAP)
 	submit_button.size = Vector2(SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP)
-	submit_button.add_theme_stylebox_override("normal", _make_button_style(COLOR_PRIMARY_STRONG))
-	submit_button.add_theme_stylebox_override("hover", _make_button_style(COLOR_PRIMARY_STRONG))
-	submit_button.add_theme_stylebox_override("pressed", _make_button_style(COLOR_SURFACE))
-	submit_button.add_theme_stylebox_override("disabled", _make_button_style(COLOR_BUTTON_DISABLED))
 	_add_submit_icon(submit_button, SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP, COLOR_INK)
 	submit_button.pressed.connect(_submit_battle_queue)
 	add_child(submit_button)
@@ -846,7 +843,6 @@ func _build_solo_layout() -> void:
 	backspace_button = _make_icon_text_button("", COLOR_PRIMARY_STRONG, COLOR_INK, 28, "backspace")
 	backspace_button.position = Vector2(action_x, prime_grid.position.y)
 	backspace_button.size = Vector2(SOLO_KEY_SIZE, SOLO_KEY_SIZE)
-	backspace_button.add_theme_stylebox_override("disabled", _make_button_style(COLOR_BUTTON_DISABLED))
 	_add_delete_icon(backspace_button, SOLO_KEY_SIZE, SOLO_KEY_SIZE, COLOR_INK)
 	backspace_button.pressed.connect(_backspace_queue)
 	add_child(backspace_button)
@@ -854,10 +850,6 @@ func _build_solo_layout() -> void:
 	submit_button = _make_icon_text_button("", COLOR_PRIMARY_STRONG, COLOR_INK, 34, "submit")
 	submit_button.position = Vector2(action_x, prime_grid.position.y + SOLO_KEY_SIZE + SOLO_KEY_GAP)
 	submit_button.size = Vector2(SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP)
-	submit_button.add_theme_stylebox_override("normal", _make_button_style(COLOR_PRIMARY_STRONG))
-	submit_button.add_theme_stylebox_override("hover", _make_button_style(COLOR_PRIMARY_STRONG))
-	submit_button.add_theme_stylebox_override("pressed", _make_button_style(COLOR_SURFACE))
-	submit_button.add_theme_stylebox_override("disabled", _make_button_style(COLOR_BUTTON_DISABLED))
 	_add_submit_icon(submit_button, SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP, COLOR_INK)
 	submit_button.pressed.connect(_submit_queue)
 	add_child(submit_button)
@@ -1243,7 +1235,8 @@ func _make_app_theme() -> Theme:
 	_add_button_theme(app_theme, THEME_BUTTON_SECONDARY, COLOR_SECONDARY, COLOR_TEXT_INVERSE, 18)
 	_add_button_theme(app_theme, THEME_BUTTON_SURFACE, COLOR_SURFACE, COLOR_INK, 16, COLOR_PRIMARY_STRONG)
 	_add_button_theme(app_theme, THEME_BUTTON_KEYPAD, COLOR_KEYPAD_BUTTON_BG, COLOR_KEYPAD_BUTTON_TEXT, 32, COLOR_PRIMARY_STRONG)
-	_add_button_theme(app_theme, THEME_BUTTON_KEY_ACTION, COLOR_PRIMARY_STRONG, COLOR_INK, 28)
+	_add_button_theme(app_theme, THEME_BUTTON_KEY_ACTION, COLOR_PRIMARY_STRONG, COLOR_INK, 28, Color.TRANSPARENT, 0)
+	_add_button_theme(app_theme, THEME_BUTTON_ICON_SURFACE, COLOR_SURFACE, COLOR_INK, 16, COLOR_PRIMARY_STRONG, 0)
 	_add_button_theme(app_theme, THEME_BUTTON_SMALL_PRIMARY, COLOR_PRIMARY_STRONG, COLOR_INK, 13)
 	_add_button_theme(app_theme, THEME_BUTTON_SMALL_SURFACE, COLOR_SURFACE, COLOR_INK, 14, COLOR_PRIMARY_STRONG)
 	_add_button_theme(app_theme, THEME_BUTTON_PAGE_PRIMARY, COLOR_PRIMARY_STRONG, COLOR_INK, 16)
@@ -1258,18 +1251,19 @@ func _add_button_theme(
 	normal_color: Color,
 	text_color: Color,
 	font_size: int,
-	hover_color: Color = Color.TRANSPARENT
+	hover_color: Color = Color.TRANSPARENT,
+	content_margin: int = 16
 ) -> void:
 	var resolved_hover_color := hover_color if hover_color != Color.TRANSPARENT else normal_color
 	app_theme.set_type_variation(variation, "Button")
 	app_theme.set_font("font", variation, _make_ui_font(800))
 	app_theme.set_font_size("font_size", variation, font_size)
-	app_theme.set_stylebox("normal", variation, _make_button_style(normal_color))
-	app_theme.set_stylebox("hover", variation, _make_button_style(resolved_hover_color))
-	app_theme.set_stylebox("focus", variation, _make_button_style(normal_color))
-	app_theme.set_stylebox("pressed", variation, _make_button_style(COLOR_SURFACE))
-	app_theme.set_stylebox("hover_pressed", variation, _make_button_style(COLOR_SURFACE))
-	app_theme.set_stylebox("disabled", variation, _make_button_style(COLOR_BUTTON_DISABLED))
+	app_theme.set_stylebox("normal", variation, _make_button_style(normal_color, content_margin))
+	app_theme.set_stylebox("hover", variation, _make_button_style(resolved_hover_color, content_margin))
+	app_theme.set_stylebox("focus", variation, _make_button_style(normal_color, content_margin))
+	app_theme.set_stylebox("pressed", variation, _make_button_style(COLOR_SURFACE, content_margin))
+	app_theme.set_stylebox("hover_pressed", variation, _make_button_style(COLOR_SURFACE, content_margin))
+	app_theme.set_stylebox("disabled", variation, _make_button_style(COLOR_BUTTON_DISABLED, content_margin))
 	_set_button_theme_colors(app_theme, variation, text_color)
 
 func _add_transparent_button_theme(app_theme: Theme) -> void:
@@ -1400,14 +1394,7 @@ func _make_home_menu_button() -> Button:
 	_apply_button_theme(button, THEME_BUTTON_TRANSPARENT)
 	_wire_button_feedback(button, "tap")
 	button.pressed.connect(_toggle_home_menu)
-
-	for index in range(3):
-		var line := ColorRect.new()
-		line.color = COLOR_TEXT_INVERSE_SOFT
-		line.position = Vector2(13, 14 + (index * 7))
-		line.size = Vector2(18, 2)
-		line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		button.add_child(line)
+	_set_or_add_texture_icon(button, "menu", 28, COLOR_TEXT_INVERSE_SOFT)
 
 	return button
 
@@ -1437,16 +1424,9 @@ func _make_pause_icon_button() -> Button:
 	button.size = Vector2(44, 44)
 	button.custom_minimum_size = Vector2(44, 44)
 	button.text = ""
-	_apply_button_theme(button, THEME_BUTTON_SURFACE)
+	_apply_button_theme(button, THEME_BUTTON_ICON_SURFACE)
 	_wire_button_feedback(button, "tap")
-
-	for x in [14.0, 24.0]:
-		var bar := ColorRect.new()
-		bar.color = COLOR_INK
-		bar.position = Vector2(x, 12)
-		bar.size = Vector2(4, 20)
-		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		button.add_child(bar)
+	_set_or_add_texture_icon(button, "pause", 28, COLOR_INK)
 
 	return button
 
@@ -1731,295 +1711,186 @@ func _push_square_tone(
 		playback.push_frame(Vector2(sample, sample))
 
 func _add_back_arrow_icon(parent: Control, width: float, height: float, color: Color) -> void:
-	var center := Vector2(width / 2.0, height / 2.0)
-	_add_icon_line(
-		parent,
-		PackedVector2Array([
-			Vector2(center.x + 8.0, center.y),
-			Vector2(center.x - 8.0, center.y),
-			Vector2(center.x - 1.0, center.y - 7.0),
-			Vector2(center.x - 8.0, center.y),
-			Vector2(center.x - 1.0, center.y + 7.0),
-		]),
-		color,
-		2.4
-	)
+	_set_or_add_texture_icon(parent, "back", int(min(width, height)), color)
 
 func _add_delete_icon(parent: Control, width: float, height: float, color: Color) -> void:
-	var icon_width := 34.0
-	var icon_height := 26.0
-	var left := (width - icon_width) / 2.0
-	var top := (height - icon_height) / 2.0
-	var notch := 8.0
-
-	_add_icon_line(
-		parent,
-		PackedVector2Array([
-			Vector2(left + notch, top),
-			Vector2(left + icon_width, top),
-			Vector2(left + icon_width, top + icon_height),
-			Vector2(left + notch, top + icon_height),
-			Vector2(left, top + (icon_height / 2.0)),
-			Vector2(left + notch, top),
-		]),
-		color,
-		2.4,
-		true
-	)
-	_add_icon_line(
-		parent,
-		PackedVector2Array([
-			Vector2(left + 18.0, top + 8.0),
-			Vector2(left + 27.0, top + 17.0),
-		]),
-		color,
-		2.2
-	)
-	_add_icon_line(
-		parent,
-		PackedVector2Array([
-			Vector2(left + 27.0, top + 8.0),
-			Vector2(left + 18.0, top + 17.0),
-		]),
-		color,
-		2.2
-	)
+	_set_or_add_texture_icon(parent, "delete", int(min(width, height) * 0.52), color)
 
 func _add_submit_icon(parent: Control, width: float, height: float, color: Color) -> void:
-	var center := Vector2(width / 2.0, height / 2.0)
-	_add_outline_circle(parent, center, 48.0, color, PIXEL_BORDER)
-	_add_icon_line(
-		parent,
-		PackedVector2Array([
-			Vector2(center.x, center.y + 14.0),
-			Vector2(center.x, center.y - 14.0),
-			Vector2(center.x - 10.0, center.y - 4.0),
-			Vector2(center.x, center.y - 14.0),
-			Vector2(center.x + 10.0, center.y - 4.0),
-		]),
-		color,
-		2.4
-	)
+	_set_or_add_texture_icon(parent, "submit", int(min(width, height) * 0.72), color)
 
 func _add_cpu_icon(parent: Control, size: float, color: Color) -> void:
-	var chip_size := 12.0
-	var chip_left := (size - chip_size) / 2.0
-	var chip_top := (size - chip_size) / 2.0
-	var chip := Panel.new()
-	chip.position = Vector2(chip_left, chip_top)
-	chip.size = Vector2(chip_size, chip_size)
-	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	chip.add_theme_stylebox_override("panel", _make_circle_style(Color.TRANSPARENT, 3, color, 2))
-	parent.add_child(chip)
-
-	for y in [5.0, 10.0, 15.0]:
-		_add_icon_line(parent, PackedVector2Array([Vector2(2.0, y), Vector2(5.0, y)]), color, 1.8)
-		_add_icon_line(parent, PackedVector2Array([Vector2(15.0, y), Vector2(18.0, y)]), color, 1.8)
-
-	for x in [5.0, 10.0, 15.0]:
-		_add_icon_line(parent, PackedVector2Array([Vector2(x, 2.0), Vector2(x, 5.0)]), color, 1.8)
-		_add_icon_line(parent, PackedVector2Array([Vector2(x, 15.0), Vector2(x, 18.0)]), color, 1.8)
+	_set_or_add_texture_icon(parent, "cpu", int(size), color)
 
 func _add_users_icon(parent: Control, size: float, color: Color) -> void:
-	_add_outline_circle(parent, Vector2(size * 0.42, size * 0.38), 7.0, color, 2)
-	_add_outline_circle(parent, Vector2(size * 0.66, size * 0.44), 6.0, color, 2)
-	_add_icon_line(
-		parent,
-		PackedVector2Array([
-			Vector2(size * 0.18, size * 0.76),
-			Vector2(size * 0.26, size * 0.64),
-			Vector2(size * 0.56, size * 0.64),
-			Vector2(size * 0.64, size * 0.76),
-		]),
-		color,
-		2.0
-	)
-	_add_icon_line(
-		parent,
-		PackedVector2Array([
-			Vector2(size * 0.56, size * 0.68),
-			Vector2(size * 0.78, size * 0.68),
-			Vector2(size * 0.86, size * 0.78),
-		]),
-		color,
-		2.0
-	)
+	_set_or_add_texture_icon(parent, "users", int(size), color)
 
 func _add_bot_avatar_icon(parent: Control, size: float, color: Color) -> void:
-	var stroke: float = max(2.0, size * 0.026)
-	var head_width := size * 0.42
-	var head_height := size * 0.34
-	var head_left := (size - head_width) / 2.0
-	var head_top := size * 0.38
-
-	var antenna_top := head_top - (size * 0.14)
-	_add_icon_line(
-		parent,
-		PackedVector2Array([
-			Vector2(size / 2.0, head_top),
-			Vector2(size / 2.0, antenna_top),
-		]),
-		color,
-		stroke
-	)
-	_add_filled_circle(parent, Vector2(size / 2.0, antenna_top - (size * 0.035)), max(4.0, size * 0.09), color)
-
-	var head := Panel.new()
-	head.position = Vector2(head_left, head_top)
-	head.size = Vector2(head_width, head_height)
-	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	head.add_theme_stylebox_override("panel", _make_circle_style(Color.TRANSPARENT, max(4.0, size * 0.075), color, int(stroke)))
-	parent.add_child(head)
-
-	var eye_size: float = max(3.0, size * 0.07)
-	_add_filled_circle(parent, Vector2(head_left + (head_width * 0.34), head_top + (head_height * 0.42)), eye_size, color)
-	_add_filled_circle(parent, Vector2(head_left + (head_width * 0.66), head_top + (head_height * 0.42)), eye_size, color)
-	_add_icon_line(
-		parent,
-		PackedVector2Array([
-			Vector2(head_left + (head_width * 0.34), head_top + (head_height * 0.68)),
-			Vector2(head_left + (head_width * 0.66), head_top + (head_height * 0.68)),
-		]),
-		color,
-		stroke
-	)
+	_set_or_add_texture_icon(parent, "bot", int(size), color)
 
 func _add_guest_avatar_icon(parent: Control, size: float, color: Color) -> void:
-	var head_center := Vector2(size / 2.0, size * 0.38)
-	_add_outline_circle(parent, head_center, size * 0.22, color, int(max(2.0, size * 0.026)))
-	_add_icon_line(
-		parent,
-		PackedVector2Array([
-			Vector2(size * 0.28, size * 0.72),
-			Vector2(size * 0.36, size * 0.60),
-			Vector2(size * 0.64, size * 0.60),
-			Vector2(size * 0.72, size * 0.72),
-		]),
-		color,
-		max(2.0, size * 0.026)
-	)
-
-func _add_outline_circle(parent: Control, center: Vector2, diameter: float, color: Color, border_width: int) -> void:
-	var ring := Panel.new()
-	ring.size = Vector2(diameter, diameter)
-	ring.position = center - Vector2(diameter / 2.0, diameter / 2.0)
-	ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ring.add_theme_stylebox_override("panel", _make_outline_circle_style(diameter / 2.0, color, border_width))
-	parent.add_child(ring)
-
-func _add_filled_circle(parent: Control, center: Vector2, diameter: float, color: Color) -> void:
-	var circle := Panel.new()
-	circle.size = Vector2(diameter, diameter)
-	circle.position = center - Vector2(diameter / 2.0, diameter / 2.0)
-	circle.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	circle.add_theme_stylebox_override("panel", _make_circle_style(color, diameter / 2.0, color, 0))
-	parent.add_child(circle)
-
-func _add_icon_line(
-	parent: Control,
-	points: PackedVector2Array,
-	color: Color,
-	_width: float,
-	closed: bool = false
-) -> void:
-	var line := Line2D.new()
-	line.default_color = color
-	line.width = ICON_STROKE
-	line.closed = closed
-	line.points = points
-	parent.add_child(line)
+	_set_or_add_texture_icon(parent, "guest", int(size), color)
 
 func _add_timer_icon(parent: Control, color: Color = COLOR_TEXT_INVERSE) -> void:
-	var ring := Panel.new()
-	ring.size = Vector2(18, 18)
-	ring.position = Vector2((HOME_BLOB_SIZE - 18.0) / 2.0, 8)
-	ring.add_theme_stylebox_override("panel", _make_outline_circle_style(9, color, PIXEL_BORDER))
-	parent.add_child(ring)
-
-	var crown := ColorRect.new()
-	crown.color = color
-	crown.size = Vector2(8, 3)
-	crown.position = Vector2((HOME_BLOB_SIZE - 8.0) / 2.0, 3)
-	parent.add_child(crown)
-
-	var hand := Line2D.new()
-	hand.default_color = color
-	hand.width = ICON_STROKE
-	hand.points = PackedVector2Array([Vector2.ZERO, Vector2(4, -5)])
-	hand.position = Vector2(HOME_BLOB_SIZE / 2.0, 17)
-	parent.add_child(hand)
+	_set_or_add_texture_icon(parent, "timer", 32, color)
 
 func _add_battle_icon(parent: Control, color: Color = COLOR_TEXT_INVERSE) -> void:
-	var first := Line2D.new()
-	first.default_color = color
-	first.width = ICON_STROKE
-	first.points = PackedVector2Array([Vector2(60, 9), Vector2(76, 25)])
-	parent.add_child(first)
-
-	var second := Line2D.new()
-	second.default_color = color
-	second.width = ICON_STROKE
-	second.points = PackedVector2Array([Vector2(76, 9), Vector2(60, 25)])
-	parent.add_child(second)
-
-	for point in [Vector2(56, 5), Vector2(80, 5)]:
-		var hilt := ColorRect.new()
-		hilt.color = color
-		hilt.position = point
-		hilt.size = Vector2(8, 3)
-		parent.add_child(hilt)
+	_set_or_add_texture_icon(parent, "battle", 32, color)
 
 func _add_help_icon(parent: Control, color: Color = COLOR_TEXT_INVERSE) -> void:
-	var icon := _make_absolute_label("?", 24, color, 900)
-	icon.size = Vector2(HOME_BLOB_SIZE, 28)
-	parent.add_child(icon)
+	_set_or_add_texture_icon(parent, "help", 32, color)
 
 func _add_page_timer_icon(parent: Control) -> void:
-	var ring := Panel.new()
-	ring.size = Vector2(56, 56)
-	ring.position = Vector2(14, 8)
-	ring.add_theme_stylebox_override("panel", _make_outline_circle_style(28, COLOR_TEXT_INVERSE, 6))
-	parent.add_child(ring)
-
-	var crown := ColorRect.new()
-	crown.color = COLOR_TEXT_INVERSE
-	crown.size = Vector2(18, 6)
-	crown.position = Vector2(33, 0)
-	parent.add_child(crown)
-
-	var hand := Line2D.new()
-	hand.default_color = COLOR_TEXT_INVERSE
-	hand.width = 6.0
-	hand.points = PackedVector2Array([Vector2.ZERO, Vector2(12, -14)])
-	hand.position = Vector2(42, 36)
-	parent.add_child(hand)
+	_set_or_add_texture_icon(parent, "timer", 64, COLOR_TEXT_INVERSE)
 
 func _add_page_battle_icon(parent: Control) -> void:
-	var first := Line2D.new()
-	first.default_color = COLOR_TEXT_INVERSE
-	first.width = 5.0
-	first.points = PackedVector2Array([Vector2(22, 16), Vector2(62, 56)])
-	parent.add_child(first)
+	_set_or_add_texture_icon(parent, "battle", 64, COLOR_TEXT_INVERSE)
 
-	var second := Line2D.new()
-	second.default_color = COLOR_TEXT_INVERSE
-	second.width = 5.0
-	second.points = PackedVector2Array([Vector2(62, 16), Vector2(22, 56)])
-	parent.add_child(second)
+func _set_or_add_texture_icon(parent: Control, kind: String, icon_size: int, color: Color) -> void:
+	var texture := _get_icon_texture(kind, color, icon_size)
+	if parent is Button:
+		var button := parent as Button
+		button.icon = texture
+		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		button.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
+		button.expand_icon = false
+		button.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		return
 
-	var left_hilt := ColorRect.new()
-	left_hilt.color = COLOR_TEXT_INVERSE
-	left_hilt.position = Vector2(16, 10)
-	left_hilt.size = Vector2(18, 6)
-	parent.add_child(left_hilt)
+	var texture_rect := TextureRect.new()
+	texture_rect.texture = texture
+	texture_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	texture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	texture_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	parent.add_child(texture_rect)
 
-	var right_hilt := ColorRect.new()
-	right_hilt.color = COLOR_TEXT_INVERSE
-	right_hilt.position = Vector2(50, 10)
-	right_hilt.size = Vector2(18, 6)
-	parent.add_child(right_hilt)
+func _get_icon_texture(kind: String, color: Color, size: int) -> Texture2D:
+	var cache_key := "%s:%s:%d" % [kind, color.to_html(true), size]
+	if icon_texture_cache.has(cache_key):
+		return icon_texture_cache[cache_key]
 
-func _make_button_style(color: Color) -> StyleBoxFlat:
+	var image := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	image.fill(Color.TRANSPARENT)
+	var stroke: int = max(2, int(size / 12.0))
+	match kind:
+		"menu":
+			_draw_icon_rect(image, Rect2i(int(size * 0.22), int(size * 0.26), int(size * 0.56), max(2, stroke - 1)), color)
+			_draw_icon_rect(image, Rect2i(int(size * 0.22), int(size * 0.48), int(size * 0.56), max(2, stroke - 1)), color)
+			_draw_icon_rect(image, Rect2i(int(size * 0.22), int(size * 0.70), int(size * 0.56), max(2, stroke - 1)), color)
+		"back":
+			_draw_icon_line(image, Vector2(size * 0.68, size * 0.5), Vector2(size * 0.28, size * 0.5), color, stroke)
+			_draw_icon_line(image, Vector2(size * 0.28, size * 0.5), Vector2(size * 0.44, size * 0.34), color, stroke)
+			_draw_icon_line(image, Vector2(size * 0.28, size * 0.5), Vector2(size * 0.44, size * 0.66), color, stroke)
+		"delete":
+			var points := [
+				Vector2(size * 0.28, size * 0.24),
+				Vector2(size * 0.84, size * 0.24),
+				Vector2(size * 0.84, size * 0.76),
+				Vector2(size * 0.28, size * 0.76),
+				Vector2(size * 0.12, size * 0.5),
+				Vector2(size * 0.28, size * 0.24),
+			]
+			_draw_icon_polyline(image, points, color, stroke)
+			_draw_icon_line(image, Vector2(size * 0.48, size * 0.4), Vector2(size * 0.68, size * 0.6), color, stroke)
+			_draw_icon_line(image, Vector2(size * 0.68, size * 0.4), Vector2(size * 0.48, size * 0.6), color, stroke)
+		"submit":
+			_draw_icon_rect_outline(image, Rect2i(2, 2, size - 4, size - 4), color, stroke)
+			_draw_icon_line(image, Vector2(size * 0.5, size * 0.72), Vector2(size * 0.5, size * 0.24), color, stroke)
+			_draw_icon_line(image, Vector2(size * 0.5, size * 0.24), Vector2(size * 0.32, size * 0.42), color, stroke)
+			_draw_icon_line(image, Vector2(size * 0.5, size * 0.24), Vector2(size * 0.68, size * 0.42), color, stroke)
+		"pause":
+			_draw_icon_rect(image, Rect2i(int(size * 0.28), int(size * 0.2), stroke, int(size * 0.6)), color)
+			_draw_icon_rect(image, Rect2i(int(size * 0.58), int(size * 0.2), stroke, int(size * 0.6)), color)
+		"timer":
+			_draw_icon_rect_outline(image, Rect2i(int(size * 0.22), int(size * 0.26), int(size * 0.56), int(size * 0.56)), color, stroke)
+			_draw_icon_rect(image, Rect2i(int(size * 0.4), int(size * 0.1), int(size * 0.2), stroke), color)
+			_draw_icon_line(image, Vector2(size * 0.5, size * 0.54), Vector2(size * 0.66, size * 0.38), color, stroke)
+		"battle":
+			_draw_icon_line(image, Vector2(size * 0.24, size * 0.22), Vector2(size * 0.76, size * 0.74), color, stroke)
+			_draw_icon_line(image, Vector2(size * 0.76, size * 0.22), Vector2(size * 0.24, size * 0.74), color, stroke)
+			_draw_icon_rect(image, Rect2i(int(size * 0.16), int(size * 0.12), int(size * 0.22), stroke), color)
+			_draw_icon_rect(image, Rect2i(int(size * 0.62), int(size * 0.12), int(size * 0.22), stroke), color)
+		"cpu":
+			_draw_icon_rect_outline(image, Rect2i(int(size * 0.28), int(size * 0.28), int(size * 0.44), int(size * 0.44)), color, max(1, stroke - 1))
+			for index in [1, 2, 3]:
+				var pin := int(size * (0.2 + (0.2 * index)))
+				_draw_icon_rect(image, Rect2i(pin, int(size * 0.08), max(1, stroke - 1), int(size * 0.16)), color)
+				_draw_icon_rect(image, Rect2i(pin, int(size * 0.76), max(1, stroke - 1), int(size * 0.16)), color)
+				_draw_icon_rect(image, Rect2i(int(size * 0.08), pin, int(size * 0.16), max(1, stroke - 1)), color)
+				_draw_icon_rect(image, Rect2i(int(size * 0.76), pin, int(size * 0.16), max(1, stroke - 1)), color)
+		"users":
+			_draw_icon_rect_outline(image, Rect2i(int(size * 0.2), int(size * 0.18), int(size * 0.28), int(size * 0.28)), color, max(1, stroke - 1))
+			_draw_icon_rect_outline(image, Rect2i(int(size * 0.52), int(size * 0.28), int(size * 0.24), int(size * 0.24)), color, max(1, stroke - 1))
+			_draw_icon_polyline(image, [Vector2(size * 0.14, size * 0.78), Vector2(size * 0.26, size * 0.58), Vector2(size * 0.54, size * 0.58), Vector2(size * 0.66, size * 0.78)], color, stroke)
+			_draw_icon_polyline(image, [Vector2(size * 0.54, size * 0.68), Vector2(size * 0.78, size * 0.68), Vector2(size * 0.88, size * 0.82)], color, stroke)
+		"bot":
+			_draw_icon_line(image, Vector2(size * 0.5, size * 0.36), Vector2(size * 0.5, size * 0.16), color, stroke)
+			_draw_icon_rect(image, Rect2i(int(size * 0.44), int(size * 0.08), int(size * 0.12), int(size * 0.12)), color)
+			_draw_icon_rect_outline(image, Rect2i(int(size * 0.26), int(size * 0.38), int(size * 0.48), int(size * 0.34)), color, stroke)
+			_draw_icon_rect(image, Rect2i(int(size * 0.38), int(size * 0.5), stroke, stroke), color)
+			_draw_icon_rect(image, Rect2i(int(size * 0.58), int(size * 0.5), stroke, stroke), color)
+			_draw_icon_rect(image, Rect2i(int(size * 0.4), int(size * 0.62), int(size * 0.2), stroke), color)
+		"guest":
+			_draw_icon_rect_outline(image, Rect2i(int(size * 0.32), int(size * 0.18), int(size * 0.36), int(size * 0.36)), color, stroke)
+			_draw_icon_polyline(image, [Vector2(size * 0.24, size * 0.82), Vector2(size * 0.36, size * 0.62), Vector2(size * 0.64, size * 0.62), Vector2(size * 0.76, size * 0.82)], color, stroke)
+		"help":
+			_draw_question_mark_icon(image, color)
+
+	var texture := ImageTexture.create_from_image(image)
+	icon_texture_cache[cache_key] = texture
+	return texture
+
+func _draw_question_mark_icon(image: Image, color: Color) -> void:
+	var size: int = image.get_width()
+	var cell: int = max(2, int(size / 8.0))
+	for point in [
+		Vector2i(2, 1),
+		Vector2i(3, 1),
+		Vector2i(4, 1),
+		Vector2i(5, 2),
+		Vector2i(5, 3),
+		Vector2i(4, 4),
+		Vector2i(3, 5),
+		Vector2i(3, 7),
+	]:
+		_draw_icon_rect(image, Rect2i(point.x * cell, point.y * cell, cell, cell), color)
+
+func _draw_icon_polyline(image: Image, points: Array, color: Color, thickness: int) -> void:
+	for index in range(points.size() - 1):
+		_draw_icon_line(image, points[index], points[index + 1], color, thickness)
+
+func _draw_icon_line(image: Image, from_point: Vector2, to_point: Vector2, color: Color, thickness: int) -> void:
+	var steps := int(max(abs(to_point.x - from_point.x), abs(to_point.y - from_point.y)))
+	if steps <= 0:
+		_draw_icon_centered_pixel(image, int(from_point.x), int(from_point.y), thickness, color)
+		return
+
+	for index in range(steps + 1):
+		var t := float(index) / float(steps)
+		var point := from_point.lerp(to_point, t)
+		_draw_icon_centered_pixel(image, int(round(point.x)), int(round(point.y)), thickness, color)
+
+func _draw_icon_rect_outline(image: Image, rect: Rect2i, color: Color, thickness: int) -> void:
+	_draw_icon_rect(image, Rect2i(rect.position.x, rect.position.y, rect.size.x, thickness), color)
+	_draw_icon_rect(image, Rect2i(rect.position.x, rect.position.y + rect.size.y - thickness, rect.size.x, thickness), color)
+	_draw_icon_rect(image, Rect2i(rect.position.x, rect.position.y, thickness, rect.size.y), color)
+	_draw_icon_rect(image, Rect2i(rect.position.x + rect.size.x - thickness, rect.position.y, thickness, rect.size.y), color)
+
+func _draw_icon_centered_pixel(image: Image, x: int, y: int, size: int, color: Color) -> void:
+	var half := int(size / 2.0)
+	_draw_icon_rect(image, Rect2i(x - half, y - half, size, size), color)
+
+func _draw_icon_rect(image: Image, rect: Rect2i, color: Color) -> void:
+	var x_start: int = max(0, rect.position.x)
+	var y_start: int = max(0, rect.position.y)
+	var x_end: int = min(image.get_width(), rect.position.x + rect.size.x)
+	var y_end: int = min(image.get_height(), rect.position.y + rect.size.y)
+	for y in range(y_start, y_end):
+		for x in range(x_start, x_end):
+			image.set_pixel(x, y, color)
+
+func _make_button_style(color: Color, content_margin: int = 16) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = color
 	style.corner_radius_top_left = PIXEL_RADIUS
@@ -2031,10 +1902,10 @@ func _make_button_style(color: Color) -> StyleBoxFlat:
 	style.border_width_top = PIXEL_BORDER
 	style.border_width_right = PIXEL_BORDER
 	style.border_width_bottom = PIXEL_BORDER
-	style.content_margin_left = 16
-	style.content_margin_right = 16
-	style.content_margin_top = 8
-	style.content_margin_bottom = 8
+	style.content_margin_left = content_margin
+	style.content_margin_right = content_margin
+	style.content_margin_top = max(0, content_margin / 2)
+	style.content_margin_bottom = max(0, content_margin / 2)
 	return style
 
 func _make_bar_style(color: Color, radius: int) -> StyleBoxFlat:
