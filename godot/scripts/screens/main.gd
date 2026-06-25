@@ -191,6 +191,7 @@ func _finish_game() -> void:
 	did_set_new_best = _save_best_score(final_score, final_combo)
 	best_score = _load_best_score()
 	best_combo = _load_best_combo()
+	_render_solo()
 	screen = Screen.GAME_OVER
 	_build_game_over_layout()
 
@@ -411,18 +412,45 @@ func _build_pause_layout() -> void:
 	actions.add_child(_make_dialog_button("Top", _start_home, COLOR_SECONDARY))
 
 func _build_game_over_layout() -> void:
-	_build_base_layout()
-	content.add_spacer(false)
+	var overlay := _make_modal_overlay()
+	add_child(overlay)
 
-	var title_text := "New Best" if did_set_new_best else "Time Up"
-	content.add_child(_make_label(title_text, 40, HORIZONTAL_ALIGNMENT_CENTER))
-	content.add_child(_make_label("Score %s" % int(solo_state["score"]), 28, HORIZONTAL_ALIGNMENT_CENTER))
-	content.add_child(_make_label("Atomized %s" % int(solo_state["clearedStages"]), 20, HORIZONTAL_ALIGNMENT_CENTER))
-	content.add_child(_make_label("Max combo %s" % int(solo_state["maxCombo"]), 20, HORIZONTAL_ALIGNMENT_CENTER))
-	content.add_child(_make_label("Best %s" % best_score, 20, HORIZONTAL_ALIGNMENT_CENTER))
-	content.add_child(_make_action_button("Play Again", _start_solo_game, COLOR_PRIMARY_STRONG))
-	content.add_child(_make_action_button("Home", _start_home, COLOR_PRIMARY))
-	content.add_spacer(false)
+	var panel := _make_dialog_panel(368)
+	overlay.add_child(panel)
+
+	_add_dialog_header(panel, "TIME'S UP")
+
+	var hero_label := _make_absolute_label("SCORE", 12, Color(0.063, 0.106, 0.18, 0.72), 700)
+	hero_label.position = Vector2(0, 72)
+	hero_label.size = Vector2(DIALOG_WIDTH, 20)
+	panel.add_child(hero_label)
+
+	var score_value := _make_absolute_label(str(int(solo_state["score"])), 48, COLOR_PRIMARY, 900)
+	score_value.position = Vector2(0, 88)
+	score_value.size = Vector2(DIALOG_WIDTH, 60)
+	panel.add_child(score_value)
+
+	var best_label := _make_best_score_badge()
+	best_label.position = Vector2((DIALOG_WIDTH - best_label.size.x) / 2.0, 148)
+	panel.add_child(best_label)
+
+	var stats := VBoxContainer.new()
+	stats.position = Vector2(12, 188)
+	stats.size = Vector2(DIALOG_WIDTH - 24.0, 92)
+	stats.add_theme_constant_override("separation", 8)
+	panel.add_child(stats)
+
+	_add_dialog_stat_row(stats, "Atomized", int(solo_state["clearedStages"]))
+	_add_dialog_stat_row(stats, "Max Combo", int(solo_state["maxCombo"]))
+
+	var actions := HBoxContainer.new()
+	actions.position = Vector2(12, 304)
+	actions.size = Vector2(DIALOG_WIDTH - 24.0, DIALOG_BUTTON_HEIGHT)
+	actions.add_theme_constant_override("separation", 8)
+	panel.add_child(actions)
+
+	actions.add_child(_make_dialog_action_button("Top", _start_home, COLOR_SECONDARY))
+	actions.add_child(_make_dialog_action_button("Retry", _start_solo_game, COLOR_PRIMARY_STRONG))
 
 func _render_solo() -> void:
 	if screen != Screen.SOLO:
@@ -773,6 +801,41 @@ func _make_dialog_button(text: String, callback: Callable, color: Color) -> Butt
 	button.add_theme_stylebox_override("pressed", _make_pill_style(color.darkened(0.08), DIALOG_BUTTON_HEIGHT / 2.0))
 	button.pressed.connect(callback)
 	return button
+
+func _make_dialog_action_button(text: String, callback: Callable, color: Color) -> Button:
+	var button := _make_dialog_button(text, callback, color)
+	button.custom_minimum_size = Vector2((DIALOG_WIDTH - 32.0) / 2.0, DIALOG_BUTTON_HEIGHT)
+	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return button
+
+func _make_best_score_badge() -> Panel:
+	var badge := Panel.new()
+	badge.size = Vector2(124, 28)
+	var badge_color := Color("#d4a017") if did_set_new_best else Color(0.086, 0.541, 0.678, 0.18)
+	badge.add_theme_stylebox_override("panel", _make_pill_style(badge_color, 14))
+
+	var badge_text := "NEW BEST!" if did_set_new_best else "BEST %s" % best_score
+	var text_color := COLOR_TEXT_INVERSE if did_set_new_best else COLOR_PRIMARY
+	var label := _make_absolute_label(badge_text, 12, text_color, 800)
+	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	badge.add_child(label)
+	return badge
+
+func _add_dialog_stat_row(container: VBoxContainer, label_text: String, value: int) -> void:
+	var row := HBoxContainer.new()
+	row.custom_minimum_size = Vector2(DIALOG_WIDTH - 24.0, 36)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	container.add_child(row)
+
+	var label := _make_absolute_label(label_text, 16, COLOR_INK, 800)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(label)
+
+	var value_label := _make_absolute_label(str(value), 16, COLOR_PRIMARY, 800)
+	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(value_label)
 
 func _make_absolute_label(text: String, font_size: int, color: Color, weight: int) -> Label:
 	var label := Label.new()
