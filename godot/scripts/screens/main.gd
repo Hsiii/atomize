@@ -12,7 +12,7 @@ const BATTLE_BOT_THINK_BASE_SECONDS := 0.42
 const BATTLE_BOT_THINK_FACTOR_SECONDS := 0.14
 const BATTLE_BOT_THINK_PENDING_DAMAGE_SECONDS := 0.012
 const BATTLE_PLAYER_ID := "guest-player"
-const BATTLE_PLAYER_NAME := "Guest"
+const BATTLE_GUEST_NAME := "Guest"
 const COMBO_QUEUE_MAX_ITEMS := 7
 const SCREEN_ARG_PREFIX := "--atomize-screen="
 const SOLO_DURATION_SECONDS := 60.0
@@ -161,6 +161,7 @@ var best_score := 0
 var best_combo := 0
 var did_set_new_best := false
 var home_menu_open := false
+var battle_player_name := ""
 var battle_snapshot: Dictionary
 var battle_prime_queue: Array[int] = []
 var battle_resolving_queue: Array[int] = []
@@ -223,6 +224,7 @@ func _ready() -> void:
 	_build_sfx_pool()
 	supabase_client = SupabaseClient.new()
 	realtime_player_id = "godot-%s" % Time.get_ticks_usec()
+	battle_player_name = _create_guest_display_name()
 	_build_network_nodes()
 	theme = _make_app_theme()
 	best_score = _load_best_score()
@@ -252,6 +254,10 @@ func _get_requested_screen() -> String:
 			return argument.trim_prefix(SCREEN_ARG_PREFIX)
 
 	return ""
+
+func _create_guest_display_name() -> String:
+	var guest_number := (Time.get_ticks_usec() % 999) + 1
+	return "%s%s" % [BATTLE_GUEST_NAME, guest_number]
 
 func _build_network_nodes() -> void:
 	network_root = Node.new()
@@ -379,7 +385,7 @@ func _track_realtime_presence() -> void:
 			"event": "track",
 			"payload": {
 				"playerId": realtime_player_id,
-				"name": BATTLE_PLAYER_NAME,
+				"name": battle_player_name,
 				"status": _realtime_presence_status(),
 				"platform": "godot",
 				"updatedAt": Time.get_unix_time_from_system(),
@@ -605,7 +611,7 @@ func _start_battle_ready() -> void:
 	battle_snapshot = BattleRoom.add_player_to_room(
 		battle_snapshot,
 		BATTLE_PLAYER_ID,
-		BATTLE_PLAYER_NAME
+		battle_player_name
 	)
 	battle_snapshot = BattleRoom.set_player_ready(battle_snapshot, BATTLE_BOT_ID, true)
 	battle_prime_queue.clear()
@@ -900,7 +906,7 @@ func _local_leaderboard_entries() -> Array[Dictionary]:
 	best_score = _load_best_score()
 	if best_score > 0:
 		entries.append({
-			"player_name": BATTLE_PLAYER_NAME,
+			"player_name": battle_player_name,
 			"high_score": best_score,
 		})
 	return entries
@@ -1208,7 +1214,7 @@ func _build_battle_ready_layout() -> void:
 	player_avatar.position = Vector2((viewport_size.x - 80.0) / 2.0, 470)
 	add_child(player_avatar)
 
-	var player_label := _make_absolute_label(BATTLE_PLAYER_NAME, 15, COLOR_TEXT_INVERSE, 800)
+	var player_label := _make_absolute_label(battle_player_name, 15, COLOR_TEXT_INVERSE, 800)
 	player_label.position = Vector2(0, 558)
 	player_label.size = Vector2(viewport_size.x, 24)
 	add_child(player_label)
@@ -1274,7 +1280,7 @@ func _build_battle_game_layout() -> void:
 	result_label.size = Vector2(viewport_size.x, 24)
 	add_child(result_label)
 
-	var player_name := _make_absolute_label(BATTLE_PLAYER_NAME, 15, COLOR_INK, 800)
+	var player_name := _make_absolute_label(battle_player_name, 15, COLOR_INK, 800)
 	player_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	player_name.position = Vector2(12, 452)
 	player_name.size = Vector2(160, 24)
