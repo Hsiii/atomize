@@ -55,6 +55,7 @@ const HAPTIC_TAP_MS := 8
 const HAPTIC_SUCCESS_MS := 22
 const HAPTIC_FAIL_MS := 36
 const DAMAGE_POP_SECONDS := 0.78
+const TIMER_PENALTY_POP_SECONDS := 0.7
 const SFX_BUS_NAME := "SFX"
 const SFX_POOL_SIZE := 8
 const SFX_SAMPLE_RATE := 22050
@@ -1877,7 +1878,7 @@ func _submit_queue() -> void:
 	submitted_queue_length = resolving_queue.size()
 	prime_queue.clear()
 	resolve_elapsed = 0.0
-	last_result_text = "Resolving..."
+	last_result_text = ""
 	_render_solo()
 
 func _resolve_next_queued_prime() -> void:
@@ -1892,10 +1893,10 @@ func _resolve_next_queued_prime() -> void:
 		solo_state = Game.apply_solo_penalty(current_state)
 		solo_time_left = max(0.0, solo_time_left - 1.0)
 		resolving_queue.clear()
-		last_result_text = "Miss: -1 HP and -1s"
+		last_result_text = ""
 		_play_sfx("fail")
 		_play_target_fault()
-		_spawn_damage_pop("-1 HP", _target_pop_position(), COLOR_DANGER)
+		_spawn_timer_penalty_pop()
 		_spawn_radial_particles(_target_center(), THEME_PANEL_PARTICLE_DANGER, THEME_PANEL_PARTICLE_RING_DANGER, 6)
 		_render_solo()
 		return
@@ -1914,16 +1915,19 @@ func _resolve_next_queued_prime() -> void:
 		solo_state = Game.apply_solo_penalty(next_state)
 		solo_time_left = max(0.0, solo_time_left - 1.0)
 		resolving_queue.clear()
-		last_result_text = "Overrun: target cleared before queue ended"
+		last_result_text = ""
 		_play_sfx("fail")
 		_play_target_fault()
-		_spawn_damage_pop("-1 HP", _target_pop_position(), COLOR_DANGER)
+		_spawn_timer_penalty_pop()
 		_spawn_radial_particles(_target_center(), THEME_PANEL_PARTICLE_DANGER, THEME_PANEL_PARTICLE_RING_DANGER, 6)
 	else:
 		solo_state = next_state
-		last_result_text = "Cleared" if outcome["cleared"] else "Hit +%s" % Game.compute_battle_factor_damage(next_prime)
+		last_result_text = ""
 		_play_sfx("success" if outcome["cleared"] else "prime")
 		_play_target_impact()
+		var score_delta := int(next_state["score"]) - int(current_state["score"])
+		if score_delta > 0:
+			_spawn_damage_pop("+%s" % score_delta, _target_pop_position(), COLOR_PRIMARY)
 		_spawn_radial_particles(
 			_target_center(),
 			THEME_PANEL_PARTICLE_PRIMARY,
@@ -2511,6 +2515,30 @@ func _target_center() -> Vector2:
 
 func _target_pop_position() -> Vector2:
 	return _target_center() + Vector2(-48, -24)
+
+func _spawn_timer_penalty_pop() -> void:
+	if not is_instance_valid(timer_bar):
+		return
+
+	var base_position := timer_bar.global_position + Vector2(timer_bar.size.x - 72.0, -28.0)
+	var label := _make_absolute_label("-1s", 14, COLOR_DANGER, 800)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	label.position = base_position + Vector2(0, 7)
+	label.size = Vector2(72, 24)
+	label.scale = Vector2(0.92, 0.92)
+	label.modulate = Color(1, 1, 1, 0)
+	add_child(label)
+
+	var motion_tween := label.create_tween()
+	motion_tween.set_parallel(true)
+	motion_tween.tween_property(label, "position", base_position + Vector2(0, -13), TIMER_PENALTY_POP_SECONDS).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	motion_tween.tween_property(label, "scale", Vector2.ONE, TIMER_PENALTY_POP_SECONDS).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+	var fade_tween := label.create_tween()
+	fade_tween.tween_property(label, "modulate", Color(1, 1, 1, 1), TIMER_PENALTY_POP_SECONDS * 0.2)
+	fade_tween.tween_interval(TIMER_PENALTY_POP_SECONDS * 0.4)
+	fade_tween.tween_property(label, "modulate", Color(1, 1, 1, 0), TIMER_PENALTY_POP_SECONDS * 0.4)
+	fade_tween.finished.connect(label.queue_free)
 
 func _play_hp_hit(bar: ProgressBar, damage: int) -> void:
 	if not is_instance_valid(bar) or damage <= 0:
