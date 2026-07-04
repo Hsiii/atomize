@@ -5,6 +5,7 @@ const BattleRoom := preload("res://scripts/core/multiplayer_room.gd")
 const SupabaseClient := preload("res://scripts/core/supabase_client.gd")
 
 const BEST_SCORE_PATH := "user://best_score.json"
+const TUTORIAL_COMPLETE_PATH := "user://tutorial_complete.txt"
 const BATTLE_BOT_ID := "atom-bot"
 const BATTLE_BOT_NAME := "AtomBot"
 const BATTLE_BOT_MISTAKE_CHANCE := 0.14
@@ -161,6 +162,7 @@ var best_score := 0
 var best_combo := 0
 var did_set_new_best := false
 var home_menu_open := false
+var needs_tutorial := false
 var battle_player_name := ""
 var battle_snapshot: Dictionary
 var battle_prime_queue: Array[int] = []
@@ -229,6 +231,7 @@ func _ready() -> void:
 	theme = _make_app_theme()
 	best_score = _load_best_score()
 	best_combo = _load_best_combo()
+	needs_tutorial = not _is_tutorial_complete()
 	match _get_requested_screen():
 		"help":
 			_start_help()
@@ -589,6 +592,15 @@ func _start_help() -> void:
 	screen = Screen.HELP
 	_build_help_layout()
 
+func _start_tutorial_play() -> void:
+	_mark_tutorial_complete()
+	_start_battle_ready()
+	_start_battle_game()
+
+func _skip_tutorial() -> void:
+	_mark_tutorial_complete()
+	_start_home()
+
 func _start_leaderboard() -> void:
 	_close_realtime_lobby()
 	screen = Screen.LEADERBOARD
@@ -735,10 +747,11 @@ func _build_home_layout() -> void:
 	_apply_panel_theme(hero, THEME_PANEL_HERO_ORB)
 	add_child(hero)
 
-	var menu_button := _make_home_menu_button()
-	menu_button.position = Vector2(viewport_size.x - HOME_MENU_BUTTON_SIZE - 12.0, 10.0)
-	add_child(menu_button)
-	_build_home_dropdown(menu_button.position + Vector2(-92, HOME_MENU_BUTTON_SIZE + 4))
+	if not needs_tutorial:
+		var menu_button := _make_home_menu_button()
+		menu_button.position = Vector2(viewport_size.x - HOME_MENU_BUTTON_SIZE - 12.0, 10.0)
+		add_child(menu_button)
+		_build_home_dropdown(menu_button.position + Vector2(-92, HOME_MENU_BUTTON_SIZE + 4))
 
 	var title_row := _make_home_title()
 	title_row.size = Vector2(min(viewport_size.x * 0.92, 320.0), 72)
@@ -751,6 +764,13 @@ func _build_home_layout() -> void:
 	var total_blob_width := (HOME_BLOB_SIZE * 2.0) + HOME_BLOB_GAP
 	var blob_left := (viewport_size.x - total_blob_width) / 2.0
 	var blob_top := hero_height + 96.0
+
+	if needs_tutorial:
+		var play_button := _make_home_blob_button("Play", _start_help, COLOR_PRIMARY_STRONG, "help")
+		play_button.position = Vector2((viewport_size.x - HOME_BLOB_SIZE) / 2.0, blob_top)
+		add_child(play_button)
+		return
+
 	var solo_button := _make_home_blob_button("Solo", _start_solo_pregame, COLOR_PRIMARY_STRONG, "timer")
 	solo_button.position = Vector2(blob_left, blob_top)
 	add_child(solo_button)
@@ -772,7 +792,7 @@ func _build_home_dropdown(position: Vector2) -> void:
 	var leaderboard_button := _make_dropdown_button("Leaderboard", _start_leaderboard)
 	dropdown.add_child(leaderboard_button)
 
-	var help_button := _make_dropdown_button("Help", _start_help)
+	var help_button := _make_dropdown_button("Tutorial", _start_help)
 	dropdown.add_child(help_button)
 
 	var reset_button := _make_dropdown_button("Reset Best", _reset_best_score)
@@ -898,7 +918,7 @@ func _normalize_historic_solo_high_score(score: float, updated_at: String) -> in
 
 func _use_local_leaderboard_fallback(status_text: String) -> void:
 	leaderboard_entries = _local_leaderboard_entries()
-	leaderboard_status_text = status_text if not leaderboard_entries.is_empty() else "No scores yet"
+	leaderboard_status_text = status_text if not leaderboard_entries.is_empty() else "No records found"
 	_render_leaderboard()
 
 func _local_leaderboard_entries() -> Array[Dictionary]:
@@ -1357,7 +1377,7 @@ func _build_help_layout() -> void:
 	back_button.position = Vector2(12, 24)
 	add_child(back_button)
 
-	var title := _make_absolute_label("HELP", 16, COLOR_TEXT_INVERSE, 900)
+	var title := _make_absolute_label("Tutorial", 16, COLOR_TEXT_INVERSE, 900)
 	title.position = Vector2(0, 28)
 	title.size = Vector2(viewport_size.x, 36)
 	add_child(title)
@@ -1367,7 +1387,7 @@ func _build_help_layout() -> void:
 	icon.size = Vector2(viewport_size.x, 72)
 	add_child(icon)
 
-	var tagline := _make_absolute_label("BREAK NUMBERS INTO PRIMES.", 12, COLOR_TEXT_INVERSE_SOFT, 800)
+	var tagline := _make_absolute_label("Tutorial - Factor to survive", 12, COLOR_TEXT_INVERSE_SOFT, 800)
 	tagline.position = Vector2(0, 168)
 	tagline.size = Vector2(viewport_size.x, 24)
 	add_child(tagline)
@@ -1378,13 +1398,10 @@ func _build_help_layout() -> void:
 	body.add_theme_constant_override("separation", 12)
 	add_child(body)
 
-	_add_help_rule(body, "Queue prime factors", "Tap primes to build a combo queue.")
-	_add_help_rule(body, "Submit exact clears", "Send the full factorization to atomize the target.")
-	_add_help_rule(body, "Avoid wrong primes", "Mistakes cost HP and time, and break your combo.")
-
-	var example := _make_absolute_label("66 = 2 x 3 x 11", 16, COLOR_PRIMARY, 900)
-	example.custom_minimum_size = Vector2(320, 40)
-	body.add_child(example)
+	_add_help_rule(body, "Tutorial - Factor to survive", "This is your compound. Factor and atomize it to deal damage to the enemy.")
+	_add_help_rule(body, "Queue the next factor", "Now tap 3 to complete the factorization.")
+	_add_help_rule(body, "Perfect clear", "Queue ALL factors in one send for a perfect clear. Perfect clears heal HP! Try it on this blob.")
+	_add_help_rule(body, "You are ready", "Queue primes, clear compounds for combo damage, and avoid wrong factors. Finish the match!")
 
 	var actions := VBoxContainer.new()
 	actions.position = Vector2(48, viewport_size.y - 180.0)
@@ -1392,8 +1409,8 @@ func _build_help_layout() -> void:
 	actions.add_theme_constant_override("separation", 12)
 	add_child(actions)
 
-	actions.add_child(_make_wide_page_button("GO", _start_solo_game, COLOR_PRIMARY_STRONG))
-	actions.add_child(_make_wide_page_button("TOP", _start_home, COLOR_SECONDARY))
+	actions.add_child(_make_wide_page_button("Start", _start_tutorial_play, COLOR_PRIMARY_STRONG))
+	actions.add_child(_make_wide_page_button("Skip", _skip_tutorial, COLOR_SECONDARY))
 
 func _clear_screen() -> void:
 	_clear_control_tweens()
@@ -1979,6 +1996,15 @@ func _apply_time_compensation(state_before_clear: Dictionary, queue_length: int)
 		compensation *= 2.0
 
 	solo_time_left += compensation
+
+func _is_tutorial_complete() -> bool:
+	return FileAccess.file_exists(TUTORIAL_COMPLETE_PATH)
+
+func _mark_tutorial_complete() -> void:
+	needs_tutorial = false
+	var file := FileAccess.open(TUTORIAL_COMPLETE_PATH, FileAccess.WRITE)
+	if file != null:
+		file.store_string("1")
 
 func _reset_best_score() -> void:
 	best_score = 0
