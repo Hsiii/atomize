@@ -95,6 +95,8 @@ const THEME_PANEL_LOGO_DOT := "AtomPanelLogoDot"
 const THEME_PANEL_SURFACE := "AtomPanelSurface"
 const THEME_PANEL_CONTAINER_SURFACE := "AtomPanelContainerSurface"
 const THEME_PANEL_DIALOG := "AtomPanelDialog"
+const THEME_PANEL_DIALOG_DEFEAT := "AtomPanelDialogDefeat"
+const THEME_PANEL_DIALOG_VICTORY := "AtomPanelDialogVictory"
 const THEME_PANEL_TARGET := "AtomPanelTarget"
 const THEME_PANEL_TARGET_DANGER := "AtomPanelTargetDanger"
 const THEME_PANEL_TARGET_GOLD := "AtomPanelTargetGold"
@@ -2454,6 +2456,7 @@ func _build_battle_over_overlay() -> void:
 	add_child(overlay)
 
 	var panel := _make_dialog_panel(360)
+	_apply_panel_theme(panel, THEME_PANEL_DIALOG_VICTORY if did_win else THEME_PANEL_DIALOG_DEFEAT)
 	if did_win:
 		_spawn_victory_confetti(overlay, panel.position + (panel.size / 2.0))
 	overlay.add_child(panel)
@@ -2991,6 +2994,8 @@ func _make_app_theme() -> Theme:
 	_add_panel_theme(app_theme, THEME_PANEL_SURFACE, "Panel", _make_panel_style(COLOR_SURFACE))
 	_add_panel_theme(app_theme, THEME_PANEL_CONTAINER_SURFACE, "PanelContainer", _make_panel_style(COLOR_SURFACE))
 	_add_panel_theme(app_theme, THEME_PANEL_DIALOG, "Panel", _make_dialog_panel_style())
+	_add_panel_theme(app_theme, THEME_PANEL_DIALOG_DEFEAT, "Panel", _make_dialog_panel_style(COLOR_INK_SOFT))
+	_add_panel_theme(app_theme, THEME_PANEL_DIALOG_VICTORY, "Panel", _make_dialog_panel_style(COLOR_GOLD))
 	_add_panel_theme(app_theme, THEME_PANEL_TARGET, "Panel", _make_pixel_box_style(COLOR_PRIMARY_STRONG, COLOR_BORDER_INVERSE_SOFT, PIXEL_BORDER, RADIUS_PILL, true))
 	_add_panel_theme(app_theme, THEME_PANEL_TARGET_DANGER, "Panel", _make_pixel_box_style(COLOR_DANGER, COLOR_BORDER_INVERSE_SOFT, PIXEL_BORDER, RADIUS_PILL, true))
 	_add_panel_theme(app_theme, THEME_PANEL_TARGET_GOLD, "Panel", _make_pixel_box_style(COLOR_GOLD, COLOR_BORDER_INVERSE_SOFT, PIXEL_BORDER, RADIUS_PILL, true))
@@ -4435,11 +4440,11 @@ func _make_bar_style(color: Color, radius: int) -> StyleBoxFlat:
 	style.corner_radius_bottom_left = radius
 	return style
 
-func _make_dialog_panel_style() -> StyleBoxFlat:
+func _make_dialog_panel_style(border_color: Color = COLOR_PRIMARY) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = COLOR_SURFACE
 	style.anti_aliasing = false
-	style.border_color = COLOR_PRIMARY
+	style.border_color = border_color
 	style.border_width_left = PIXEL_BORDER
 	style.border_width_top = PIXEL_BORDER
 	style.border_width_right = PIXEL_BORDER
