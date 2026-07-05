@@ -1947,13 +1947,13 @@ func _build_battle_game_layout() -> void:
 	add_child(result_label)
 
 	var player_name_text := "You" if tutorial_active else battle_player_name
-	var player_name := _make_absolute_label(player_name_text, 15, COLOR_INK, 800)
+	var player_name := _make_absolute_label(player_name_text, 15, COLOR_PRIMARY_STRONG, 800)
 	player_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	player_name.position = Vector2(12, 452)
 	player_name.size = Vector2(160, 24)
 	add_child(player_name)
 
-	player_hp_label = _make_absolute_label("", 15, COLOR_INK, 800)
+	player_hp_label = _make_absolute_label("", 15, COLOR_PRIMARY_STRONG, 800)
 	player_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	player_hp_label.position = Vector2(viewport_size.x - 92.0, 452)
 	player_hp_label.size = Vector2(80, 24)
