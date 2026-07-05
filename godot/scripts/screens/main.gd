@@ -1348,15 +1348,18 @@ func _build_home_layout() -> void:
 		var play_button := _make_home_blob_button("Play", _start_tutorial_game, COLOR_PRIMARY_STRONG, "help")
 		play_button.position = Vector2((viewport_size.x - HOME_BLOB_SIZE) / 2.0, blob_top)
 		add_child(play_button)
+		_start_home_blob_idle(play_button, false)
 		return
 
 	var solo_button := _make_home_blob_button("Solo", _start_solo_pregame, COLOR_PRIMARY_STRONG, "timer")
 	solo_button.position = Vector2(blob_left, blob_top)
 	add_child(solo_button)
+	_start_home_blob_idle(solo_button, false)
 
 	var battle_button := _make_home_blob_button("Battle", _start_battle_picker, COLOR_SECONDARY, "battle")
 	battle_button.position = Vector2(blob_left + HOME_BLOB_SIZE + HOME_BLOB_GAP, blob_top)
 	add_child(battle_button)
+	_start_home_blob_idle(battle_button, true)
 
 func _build_home_dropdown(position: Vector2) -> void:
 	if not home_menu_open:
@@ -3217,6 +3220,23 @@ func _make_home_blob_button(text: String, callback: Callable, color: Color, icon
 	content_stack.add_child(label)
 
 	return button
+
+func _start_home_blob_idle(button: Button, starts_raised: bool) -> void:
+	var base_y := button.position.y
+	var raised_y := base_y - 4.0
+	if starts_raised:
+		button.position.y = raised_y
+
+	var tween := button.create_tween().bind_node(button)
+	tween.set_loops()
+	tween.set_trans(Tween.TRANS_SINE)
+	tween.set_ease(Tween.EASE_IN_OUT)
+	if starts_raised:
+		tween.tween_property(button, "position:y", base_y, 3.3)
+		tween.tween_property(button, "position:y", raised_y, 3.3)
+	else:
+		tween.tween_property(button, "position:y", raised_y, 3.3)
+		tween.tween_property(button, "position:y", base_y, 3.3)
 
 func _make_home_menu_button() -> Button:
 	var button := Button.new()
