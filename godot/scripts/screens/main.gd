@@ -1765,11 +1765,16 @@ func _add_battle_online_row(parent: VBoxContainer, player: Dictionary, width: fl
 	row.custom_minimum_size = Vector2(width, 44)
 	parent.add_child(row)
 
-	var avatar := _make_avatar_icon_circle(44, COLOR_PRIMARY_STRONG, "guest")
+	var player_name := str(player.get("name", BATTLE_GUEST_NAME))
+	var avatar_initial := player_name.substr(0, 1).to_upper()
+	if avatar_initial.is_empty():
+		avatar_initial = BATTLE_GUEST_NAME.substr(0, 1)
+
+	var avatar := _make_avatar_initial_circle(44, COLOR_PRIMARY_STRONG, avatar_initial, 13)
 	avatar.position = Vector2.ZERO
 	row.add_child(avatar)
 
-	var name := _make_absolute_label(str(player.get("name", "Guest")), 16, COLOR_INK, 800)
+	var name := _make_absolute_label(player_name, 16, COLOR_INK, 800)
 	name.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	name.clip_text = true
 	name.position = Vector2(54.0, 10.0)
