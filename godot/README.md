@@ -31,7 +31,7 @@ Use this path when setting up a machine for the first time:
 3. Open the project once:
 
     ```bash
-    bun run godot:open
+    bun run godot
     ```
 
 4. In Godot, install matching export templates:
@@ -55,14 +55,13 @@ device latency testing, not a full replacement for the Vite UI yet.
 
 Run these commands from the repository root:
 
-| Task                                         | Command                  |
-| -------------------------------------------- | ------------------------ |
-| Open the Godot editor                        | `bun run godot:open`     |
-| Regenerate parity fixtures                   | `bun run godot:fixtures` |
-| Run TypeScript/Godot parity tests            | `bun run godot:test`     |
-| Export Android debug APK                     | `bun run android`        |
-| Export iOS debug Xcode package               | `bun run ios:export`     |
-| Export, build, install, and launch on iPhone | `bun run ios`            |
+| Task                                         | Command              |
+| -------------------------------------------- | -------------------- |
+| Open the Godot editor                        | `bun run godot`      |
+| Run TypeScript/Godot parity tests            | `bun run godot:test` |
+| Export Android debug APK                     | `bun run android`    |
+| Export iOS debug Xcode package               | `bun run ios:export` |
+| Export, build, install, and launch on iPhone | `bun run ios`        |
 
 ## Logic Parity
 
