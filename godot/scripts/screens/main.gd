@@ -26,6 +26,9 @@ const SOLO_SEED_PREFIX := "godot-mobile"
 const SOLO_SCORE_REDESIGN_AT := "2026-04-07T10:48:36.000Z"
 const HISTORIC_SOLO_SCORE_FACTOR := 0.5
 const HISTORIC_SOLO_SCORE_CAP := 600
+const DESKTOP_PRIME_KEYBINDS := ["r", "t", "y", "f", "g", "h", "v", "b", "n"]
+const DESKTOP_BACKSPACE_KEY := "u"
+const DESKTOP_SUBMIT_KEY := "j"
 const REALTIME_LOBBY_TOPIC := "realtime:atomize:lobby"
 const REALTIME_HEARTBEAT_SECONDS := 25.0
 const REALTIME_RECONNECT_SECONDS := 6.0
@@ -361,6 +364,7 @@ var resolving_queue: Array[int] = []
 var submitted_queue_length := 0
 var resolve_elapsed := 0.0
 var last_result_text := ""
+var keyboard_buffered_prime_input := ""
 var best_score := 0
 var best_combo := 0
 var did_set_new_best := false
@@ -794,6 +798,241 @@ func _unhandled_input(event: InputEvent) -> void:
 				_skip_tutorial()
 			else:
 				_start_home()
+		get_viewport().set_input_as_handled()
+		return
+
+	if _handle_game_keyboard_input(event):
+		get_viewport().set_input_as_handled()
+
+func _handle_game_keyboard_input(event: InputEvent) -> bool:
+	if screen != Screen.SOLO and screen != Screen.BATTLE_GAME:
+		return false
+
+	if not (event is InputEventKey):
+		return false
+
+	var key_event := event as InputEventKey
+	if key_event.alt_pressed or key_event.ctrl_pressed or key_event.meta_pressed:
+		return false
+
+	var key_text := _keyboard_event_text(key_event)
+	if key_text == "backspace":
+		if _is_game_keyboard_busy() or (keyboard_buffered_prime_input.is_empty() and _active_prime_queue_size() == 0):
+			return false
+
+		_handle_keyboard_backspace()
+		return true
+
+	if key_text == " " or key_text == "space":
+		_handle_keyboard_space()
+		return true
+
+	if key_text == "enter" or key_text == "kp enter":
+		_handle_keyboard_submit()
+		return true
+
+	if key_event.echo:
+		return false
+
+	var direct_prime := _desktop_prime_from_key(key_text)
+	if direct_prime != 0:
+		_handle_keyboard_prime(direct_prime)
+		return true
+
+	if key_text == DESKTOP_BACKSPACE_KEY:
+		if _is_game_keyboard_busy() or (keyboard_buffered_prime_input.is_empty() and _active_prime_queue_size() == 0):
+			return false
+
+		_handle_keyboard_backspace()
+		return true
+
+	if key_text == DESKTOP_SUBMIT_KEY:
+		_handle_keyboard_submit()
+		return true
+
+	if key_text.length() == 1 and key_text >= "1" and key_text <= "9":
+		_handle_keyboard_digit(key_text)
+		return true
+
+	return false
+
+func _keyboard_event_text(event: InputEventKey) -> String:
+	if event.keycode == KEY_BACKSPACE:
+		return "backspace"
+
+	if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
+		return "enter"
+
+	if event.keycode == KEY_SPACE:
+		return " "
+
+	if event.unicode > 0:
+		return String.chr(event.unicode).to_lower()
+
+	return OS.get_keycode_string(event.keycode).to_lower()
+
+func _desktop_prime_from_key(key_text: String) -> int:
+	var key_index := DESKTOP_PRIME_KEYBINDS.find(key_text)
+	if key_index == -1:
+		return 0
+
+	var playable_primes := Game.get_playable_stage_primes()
+	if key_index >= playable_primes.size():
+		return 0
+
+	return int(playable_primes[key_index])
+
+func _handle_keyboard_prime(prime: int) -> void:
+	_clear_keyboard_prime_input(false)
+	if screen == Screen.SOLO:
+		_queue_prime(prime)
+	elif screen == Screen.BATTLE_GAME:
+		_queue_battle_prime(prime)
+
+func _handle_keyboard_digit(digit: String) -> void:
+	if not _can_queue_keyboard_prime():
+		return
+
+	if keyboard_buffered_prime_input.is_empty():
+		_process_fresh_keyboard_digit(digit)
+		return
+
+	var buffered_prime := _playable_prime_matching("%s%s" % [keyboard_buffered_prime_input, digit])
+	_clear_keyboard_prime_input(false)
+	if buffered_prime != 0:
+		_handle_keyboard_prime(buffered_prime)
+		return
+
+	_process_fresh_keyboard_digit(digit)
+
+func _process_fresh_keyboard_digit(digit: String) -> void:
+	if digit == "4":
+		var shortcut_prime := _playable_prime_matching("23")
+		if shortcut_prime != 0:
+			_handle_keyboard_prime(shortcut_prime)
+		return
+
+	var matching_primes := _playable_primes_starting_with(digit)
+	if matching_primes.is_empty():
+		return
+
+	var exact_prime := _playable_prime_matching(digit)
+	var has_longer_match := false
+	for prime in matching_primes:
+		if str(prime).length() > digit.length():
+			has_longer_match = true
+			break
+
+	if exact_prime != 0 and (digit != "1" or not has_longer_match):
+		_handle_keyboard_prime(exact_prime)
+		return
+
+	_set_keyboard_prime_input(digit)
+
+func _handle_keyboard_backspace() -> void:
+	if screen == Screen.SOLO:
+		_backspace_queue()
+	elif screen == Screen.BATTLE_GAME:
+		_backspace_battle_queue()
+
+func _handle_keyboard_submit() -> void:
+	if not keyboard_buffered_prime_input.is_empty():
+		return
+
+	if screen == Screen.SOLO:
+		_submit_queue()
+	elif screen == Screen.BATTLE_GAME:
+		_submit_battle_queue()
+
+func _handle_keyboard_space() -> void:
+	if not keyboard_buffered_prime_input.is_empty():
+		_commit_keyboard_prime_input()
+		return
+
+	_handle_keyboard_submit()
+
+func _commit_keyboard_prime_input() -> void:
+	if not _can_queue_keyboard_prime():
+		_clear_keyboard_prime_input()
+		return
+
+	var buffered_prime := _playable_prime_matching(keyboard_buffered_prime_input)
+	_clear_keyboard_prime_input(false)
+	if buffered_prime != 0:
+		_handle_keyboard_prime(buffered_prime)
+	else:
+		_render_active_game_input()
+
+func _can_queue_keyboard_prime() -> bool:
+	if screen == Screen.SOLO:
+		return resolving_queue.is_empty() and prime_queue.size() < COMBO_QUEUE_MAX_ITEMS
+
+	if screen != Screen.BATTLE_GAME or battle_snapshot.is_empty():
+		return false
+
+	if battle_snapshot["status"] != "playing" or not battle_resolving_queue.is_empty():
+		return false
+
+	if battle_prime_queue.size() >= COMBO_QUEUE_MAX_ITEMS:
+		return false
+
+	if tutorial_active:
+		_sync_tutorial_state()
+		if _tutorial_is_interaction_blocked():
+			return false
+
+	return true
+
+func _is_game_keyboard_busy() -> bool:
+	if screen == Screen.SOLO:
+		return not resolving_queue.is_empty()
+
+	if screen == Screen.BATTLE_GAME:
+		return not battle_resolving_queue.is_empty()
+
+	return false
+
+func _active_prime_queue_size() -> int:
+	if screen == Screen.SOLO:
+		return prime_queue.size()
+
+	if screen == Screen.BATTLE_GAME:
+		return battle_prime_queue.size()
+
+	return 0
+
+func _playable_prime_matching(value: String) -> int:
+	for prime in Game.get_playable_stage_primes():
+		if str(prime) == value:
+			return int(prime)
+
+	return 0
+
+func _playable_primes_starting_with(value: String) -> Array[int]:
+	var matches: Array[int] = []
+	for prime in Game.get_playable_stage_primes():
+		if str(prime).begins_with(value):
+			matches.append(int(prime))
+
+	return matches
+
+func _set_keyboard_prime_input(value: String) -> void:
+	keyboard_buffered_prime_input = value
+	_render_active_game_input()
+
+func _clear_keyboard_prime_input(should_render := true) -> void:
+	if keyboard_buffered_prime_input.is_empty():
+		return
+
+	keyboard_buffered_prime_input = ""
+	if should_render:
+		_render_active_game_input()
+
+func _render_active_game_input() -> void:
+	if screen == Screen.SOLO:
+		_render_solo()
+	elif screen == Screen.BATTLE_GAME:
+		_render_battle()
 
 func _start_home() -> void:
 	_close_realtime_lobby()
@@ -1008,6 +1247,7 @@ func _finish_game() -> void:
 	solo_time_left = 0.0
 	resolving_queue.clear()
 	prime_queue.clear()
+	_clear_keyboard_prime_input(false)
 	var final_score := int(solo_state["score"])
 	var final_combo := int(solo_state["maxCombo"])
 	did_set_new_best = _save_best_score(final_score, final_combo)
@@ -1731,6 +1971,7 @@ func _build_help_layout() -> void:
 
 func _clear_screen() -> void:
 	_clear_control_tweens()
+	_clear_keyboard_prime_input(false)
 	for child in get_children():
 		if child == sfx_pool_root or child == network_root:
 			continue
@@ -1913,8 +2154,9 @@ func _render_solo() -> void:
 	target_label.text = str(stage["remainingValue"])
 	factors_label.text = "%s left" % stage["remainingFactors"].size()
 	factors_label.visible = true
-	queue_label.text = _join_numbers(prime_queue) if not prime_queue.is_empty() else ""
-	queue_label.modulate.a = 1.0 if not prime_queue.is_empty() else 0.46
+	var queue_text := _format_queue_label(prime_queue)
+	queue_label.text = queue_text
+	queue_label.modulate.a = 1.0 if not queue_text.is_empty() else 0.46
 	queue_label.visible = true
 	result_label.text = last_result_text
 	result_label.visible = last_result_text != ""
@@ -1922,7 +2164,7 @@ func _render_solo() -> void:
 
 	var is_busy := not resolving_queue.is_empty()
 	submit_button.disabled = is_busy or prime_queue.is_empty()
-	backspace_button.disabled = is_busy or prime_queue.is_empty()
+	backspace_button.disabled = is_busy or (prime_queue.is_empty() and keyboard_buffered_prime_input.is_empty())
 
 	for child in prime_grid.get_children():
 		if child is Button:
@@ -1952,8 +2194,9 @@ func _render_battle() -> void:
 	player_hp_label.text = str(int(player["hp"]))
 	stage_label.text = "Stage %s" % [int(player["stageIndex"]) + 1]
 	target_label.text = str(player["stage"]["remainingValue"])
-	queue_label.text = _join_numbers(battle_prime_queue) if not battle_prime_queue.is_empty() else ""
-	queue_label.modulate.a = 1.0 if not battle_prime_queue.is_empty() else 0.46
+	var queue_text := _format_queue_label(battle_prime_queue)
+	queue_label.text = queue_text
+	queue_label.modulate.a = 1.0 if not queue_text.is_empty() else 0.46
 	queue_label.visible = true
 	result_label.text = battle_result_text
 	result_label.visible = battle_result_text != ""
@@ -1971,7 +2214,7 @@ func _render_battle() -> void:
 	backspace_button.disabled = (
 		is_finished
 		or is_busy
-		or battle_prime_queue.is_empty()
+		or (battle_prime_queue.is_empty() and keyboard_buffered_prime_input.is_empty())
 		or (tutorial_active and tutorial_step != TutorialStep.DONE)
 	)
 
@@ -1994,6 +2237,7 @@ func _queue_battle_prime(prime: int) -> void:
 	if screen != Screen.BATTLE_GAME or battle_snapshot["status"] != "playing":
 		return
 
+	_clear_keyboard_prime_input(false)
 	if tutorial_active:
 		_sync_tutorial_state()
 		if _tutorial_is_interaction_blocked() or _tutorial_prime_disabled(prime):
@@ -2014,7 +2258,14 @@ func _queue_battle_prime(prime: int) -> void:
 	_render_battle()
 
 func _backspace_battle_queue() -> void:
-	if screen != Screen.BATTLE_GAME or battle_prime_queue.is_empty():
+	if screen != Screen.BATTLE_GAME or not battle_resolving_queue.is_empty():
+		return
+
+	if not keyboard_buffered_prime_input.is_empty():
+		_clear_keyboard_prime_input()
+		return
+
+	if battle_prime_queue.is_empty():
 		return
 
 	if tutorial_active and tutorial_step != TutorialStep.DONE:
@@ -2027,6 +2278,9 @@ func _backspace_battle_queue() -> void:
 
 func _submit_battle_queue() -> void:
 	if screen != Screen.BATTLE_GAME or not battle_resolving_queue.is_empty():
+		return
+
+	if not keyboard_buffered_prime_input.is_empty():
 		return
 
 	var player = BattleRoom.find_player(battle_snapshot["players"], BATTLE_PLAYER_ID)
@@ -2567,6 +2821,7 @@ func _queue_prime(prime: int) -> void:
 	if screen != Screen.SOLO or not resolving_queue.is_empty():
 		return
 
+	_clear_keyboard_prime_input(false)
 	if prime_queue.size() >= COMBO_QUEUE_MAX_ITEMS:
 		_play_sfx("fail")
 		last_result_text = "Queue full"
@@ -2579,7 +2834,14 @@ func _queue_prime(prime: int) -> void:
 	_render_solo()
 
 func _backspace_queue() -> void:
-	if screen != Screen.SOLO or not resolving_queue.is_empty() or prime_queue.is_empty():
+	if screen != Screen.SOLO or not resolving_queue.is_empty():
+		return
+
+	if not keyboard_buffered_prime_input.is_empty():
+		_clear_keyboard_prime_input()
+		return
+
+	if prime_queue.is_empty():
 		return
 
 	prime_queue.pop_back()
@@ -2588,6 +2850,9 @@ func _backspace_queue() -> void:
 
 func _submit_queue() -> void:
 	if screen != Screen.SOLO or prime_queue.is_empty() or not resolving_queue.is_empty():
+		return
+
+	if not keyboard_buffered_prime_input.is_empty():
 		return
 
 	resolving_queue = prime_queue.duplicate()
@@ -4247,10 +4512,17 @@ func _make_panel_style(color: Color) -> StyleBoxFlat:
 	style.content_margin_bottom = 20
 	return style
 
+func _format_queue_label(numbers: Array) -> String:
+	var display_numbers := numbers.duplicate()
+	if not keyboard_buffered_prime_input.is_empty():
+		display_numbers.append(keyboard_buffered_prime_input)
+
+	return _join_numbers(display_numbers) if not display_numbers.is_empty() else ""
+
 func _join_numbers(numbers: Array) -> String:
 	var labels: Array[String] = []
 
 	for number in numbers:
 		labels.append(str(number))
 
-	return " x ".join(labels)
+	return " × ".join(labels)
