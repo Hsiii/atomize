@@ -3079,7 +3079,7 @@ func _add_button_theme(
 	app_theme.set_stylebox("focus", variation, _make_button_style(normal_color, content_margin, radius, border_color, border_width))
 	app_theme.set_stylebox("pressed", variation, _make_button_style(pressed_color, content_margin, radius, border_color, border_width))
 	app_theme.set_stylebox("hover_pressed", variation, _make_button_style(pressed_color, content_margin, radius, border_color, border_width))
-	var disabled_color := Color(normal_color.r, normal_color.g, normal_color.b, max(0.18, normal_color.a * 0.38))
+	var disabled_color := Color(normal_color.r, normal_color.g, normal_color.b, normal_color.a * 0.38)
 	app_theme.set_stylebox("disabled", variation, _make_button_style(disabled_color, content_margin, radius, Color.TRANSPARENT, 0))
 	_set_button_theme_colors(app_theme, variation, text_color)
 
@@ -3106,7 +3106,7 @@ func _set_button_theme_colors(app_theme: Theme, variation: String, text_color: C
 	]:
 		app_theme.set_color(color_name, variation, text_color)
 
-	var disabled_text_color := Color(text_color.r, text_color.g, text_color.b, max(0.38, text_color.a * 0.38))
+	var disabled_text_color := Color(text_color.r, text_color.g, text_color.b, text_color.a * 0.38)
 	app_theme.set_color("font_disabled_color", variation, disabled_text_color)
 	app_theme.set_color("icon_disabled_color", variation, disabled_text_color)
 
