@@ -3359,7 +3359,7 @@ func _make_best_score_badge() -> Panel:
 	var badge_color := COLOR_GOLD if did_set_new_best else COLOR_SURFACE
 	_apply_panel_theme(badge, THEME_PANEL_BADGE_GOLD if did_set_new_best else THEME_PANEL_BADGE_SURFACE)
 
-	var badge_text := "NEW BEST!" if did_set_new_best else "BEST %s" % best_score
+	var badge_text := "New Best!" if did_set_new_best else "BEST %s" % best_score
 	var text_color := COLOR_TEXT_INVERSE if did_set_new_best else _get_button_text_color(badge_color)
 	var label := _make_absolute_label(badge_text, 12, text_color, 800)
 	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
