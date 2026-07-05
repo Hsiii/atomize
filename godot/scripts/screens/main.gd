@@ -2135,9 +2135,9 @@ func _render_solo() -> void:
 
 	var stage: Dictionary = solo_state["currentStage"]
 	timer_bar.value = solo_time_left
-	_apply_progress_theme(timer_bar, _timer_progress_theme())
+	_apply_progress_theme(timer_bar, THEME_PROGRESS_PRIMARY)
 	timer_label.text = "%02d" % ceili(solo_time_left)
-	_set_label_color(timer_label, _timer_text_color())
+	_set_label_color(timer_label, COLOR_PRIMARY)
 	score_label.text = "%s pt" % int(solo_state["score"])
 	stage_label.text = "Stage %s" % [int(solo_state["clearedStages"]) + 1]
 	target_label.text = str(stage["remainingValue"])
@@ -3484,24 +3484,6 @@ func _make_label_settings(font_size: int, color: Color, weight: int) -> LabelSet
 
 func _get_button_text_color(color: Color) -> Color:
 	return COLOR_TEXT_INVERSE if color in [COLOR_PRIMARY, COLOR_PRIMARY_STRONG, COLOR_SECONDARY, COLOR_DANGER] else COLOR_PRIMARY
-
-func _timer_progress_theme() -> String:
-	if solo_time_left <= 10.0:
-		return THEME_PROGRESS_DANGER
-
-	if solo_time_left <= 20.0:
-		return THEME_PROGRESS_GOLD
-
-	return THEME_PROGRESS_PRIMARY
-
-func _timer_text_color() -> Color:
-	if solo_time_left <= 10.0:
-		return COLOR_DANGER
-
-	if solo_time_left <= 20.0:
-		return COLOR_GOLD
-
-	return COLOR_PRIMARY
 
 func _feedback_text_color(text: String, fallback: Color) -> Color:
 	if text == "":
