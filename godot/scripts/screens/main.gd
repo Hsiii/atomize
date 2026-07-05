@@ -2125,7 +2125,7 @@ func _build_game_over_layout() -> void:
 
 	_add_dialog_header(panel, "Time's Up")
 
-	var hero_label := _make_absolute_label("Score", 12, COLOR_INK_SOFT, 700)
+	var hero_label := _make_absolute_label("SCORE", 12, COLOR_INK_SOFT, 700)
 	hero_label.position = Vector2(0, 72)
 	hero_label.size = Vector2(DIALOG_WIDTH, 20)
 	panel.add_child(hero_label)
@@ -3373,7 +3373,7 @@ func _add_dialog_header(panel: Panel, title: String, header_color: Color = COLOR
 	header.size = Vector2(DIALOG_WIDTH, 56)
 	panel.add_child(header)
 
-	var title_label := _make_absolute_label(title, 30, COLOR_TEXT_INVERSE, 900)
+	var title_label := _make_absolute_label(title.to_upper(), 30, COLOR_TEXT_INVERSE, 900)
 	title_label.position = Vector2.ZERO
 	title_label.size = Vector2(DIALOG_WIDTH, 56)
 	panel.add_child(title_label)
