@@ -432,7 +432,6 @@ var leaderboard_request: HTTPRequest
 var root_margin: MarginContainer
 var content: VBoxContainer
 var stage_label: Label
-var timer_label: Label
 var score_label: Label
 var target_label: Label
 var factors_label: Label
@@ -2027,11 +2026,6 @@ func _build_solo_layout() -> void:
 	_apply_progress_theme(timer_bar, THEME_PROGRESS_PRIMARY)
 	add_child(timer_bar)
 
-	timer_label = _make_absolute_label("", 14, COLOR_PRIMARY, 800)
-	timer_label.position = Vector2((viewport_size.x - 72.0) / 2.0, 6)
-	timer_label.size = Vector2(72, 20)
-	add_child(timer_label)
-
 	score_label = _make_absolute_label("", 14, COLOR_PRIMARY, 800)
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	score_label.position = Vector2(viewport_size.x - 112.0, 16)
@@ -2169,8 +2163,6 @@ func _render_solo() -> void:
 	var stage: Dictionary = solo_state["currentStage"]
 	timer_bar.value = solo_time_left
 	_apply_progress_theme(timer_bar, THEME_PROGRESS_PRIMARY)
-	timer_label.text = "%02d" % ceili(solo_time_left)
-	_set_label_color(timer_label, COLOR_PRIMARY)
 	score_label.text = "%s pt" % int(solo_state["score"])
 	stage_label.text = "Stage %s" % [int(solo_state["clearedStages"]) + 1]
 	target_label.text = str(stage["remainingValue"])
