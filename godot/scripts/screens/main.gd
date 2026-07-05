@@ -1491,8 +1491,34 @@ func _render_leaderboard() -> void:
 	leaderboard_status_label.text = leaderboard_status_text
 	leaderboard_status_label.visible = not leaderboard_status_text.is_empty()
 
+	if not leaderboard_entries.is_empty():
+		_add_leaderboard_header(leaderboard_rows_root, leaderboard_rows_root.size.x)
+
 	for index in range(leaderboard_entries.size()):
 		_add_leaderboard_row(leaderboard_rows_root, index + 1, leaderboard_entries[index], leaderboard_rows_root.size.x)
+
+func _add_leaderboard_header(parent: VBoxContainer, width: float) -> void:
+	var header := Control.new()
+	header.custom_minimum_size = Vector2(width, 28)
+	parent.add_child(header)
+
+	var rank_label := _make_absolute_label("Rank", 11, COLOR_INK_SOFT, 800)
+	rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	rank_label.position = Vector2(0, 0)
+	rank_label.size = Vector2(56, 24)
+	header.add_child(rank_label)
+
+	var player_label := _make_absolute_label("Player", 11, COLOR_INK_SOFT, 800)
+	player_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	player_label.position = Vector2(64, 0)
+	player_label.size = Vector2(max(96.0, width - 160.0), 24)
+	header.add_child(player_label)
+
+	var score_label := _make_absolute_label("High Score", 11, COLOR_INK_SOFT, 800)
+	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	score_label.position = Vector2(width - 88.0, 0)
+	score_label.size = Vector2(88, 24)
+	header.add_child(score_label)
 
 func _add_leaderboard_row(parent: VBoxContainer, rank: int, entry: Dictionary, width: float) -> void:
 	var row := Control.new()
