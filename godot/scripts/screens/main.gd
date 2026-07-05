@@ -266,7 +266,7 @@ const TUTORIAL_LESSONS := {
 	},
 	TutorialStep.PERFECT_SOLVE_QUEUE: {
 		"blocking": false,
-		"body": "This compound is 14 = 2 x 7. Queue both factors at once.",
+		"body": "This compound is 14 = 2 × 7. Queue both factors at once.",
 		"position": "top",
 		"title": "Queue all factors",
 	},
@@ -279,7 +279,7 @@ const TUTORIAL_LESSONS := {
 	TutorialStep.PERFECT_SOLVE_RESULT: {
 		"action": "Next",
 		"blocking": true,
-		"body": "Your HP went up! Perfect clears heal and deal bonus combo damage - the more factors, the bigger the bonus.",
+		"body": "Your HP went up! Perfect clears heal and deal bonus combo damage — the more factors, the bigger the bonus.",
 		"position": "bottom",
 		"title": "Healed!",
 	},
@@ -313,13 +313,13 @@ const TUTORIAL_LESSONS := {
 	TutorialStep.OVERFLOW_EXPLAIN: {
 		"action": "Try it",
 		"blocking": true,
-		"body": "What if you queue more factors than needed? Let's find out.",
+		"body": "What if you queue more factors than needed? Let’s find out.",
 		"position": "bottom",
 		"title": "Over-queuing",
 	},
 	TutorialStep.OVERFLOW_QUEUE: {
 		"blocking": false,
-		"body": "Queue 3, 7, then 2. The blob only needs 3 x 7, so 2 is extra.",
+		"body": "Queue 3, 7, then 2. The blob only needs 3 × 7, so 2 is extra.",
 		"position": "top",
 		"title": "Queue too many",
 	},
