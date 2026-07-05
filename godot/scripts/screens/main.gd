@@ -1760,7 +1760,7 @@ func _add_battle_online_state(left: float, top: float, width: float) -> void:
 	battle_online_rows_root = VBoxContainer.new()
 	battle_online_rows_root.custom_minimum_size = Vector2(width, 0)
 	battle_online_rows_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	battle_online_rows_root.add_theme_constant_override("separation", 8)
+	battle_online_rows_root.add_theme_constant_override("separation", 0)
 	battle_online_scroll.add_child(battle_online_rows_root)
 
 	_render_battle_online_players()
@@ -1790,35 +1790,42 @@ func _render_battle_online_players() -> void:
 	battle_online_hint_label.visible = false
 
 	for index in range(realtime_online_players.size()):
-		_add_battle_online_row(battle_online_rows_root, realtime_online_players[index], battle_online_scroll.size.x)
+		_add_battle_online_row(battle_online_rows_root, realtime_online_players[index], battle_online_scroll.size.x, index > 0)
 
-func _add_battle_online_row(parent: VBoxContainer, player: Dictionary, width: float) -> void:
+func _add_battle_online_row(parent: VBoxContainer, player: Dictionary, width: float, show_separator: bool) -> void:
 	var row := Control.new()
-	row.custom_minimum_size = Vector2(width, 44)
+	row.custom_minimum_size = Vector2(width, 64)
 	parent.add_child(row)
+
+	if show_separator:
+		var separator := ColorRect.new()
+		separator.color = COLOR_BORDER_SOFT
+		separator.position = Vector2.ZERO
+		separator.size = Vector2(width, 1.0)
+		row.add_child(separator)
 
 	var player_name := str(player.get("name", BATTLE_GUEST_NAME))
 	var avatar_initial := player_name.substr(0, 1).to_upper()
 	if avatar_initial.is_empty():
 		avatar_initial = BATTLE_GUEST_NAME.substr(0, 1)
 
-	var avatar := _make_avatar_initial_circle(44, COLOR_PRIMARY_STRONG, avatar_initial, 13)
-	avatar.position = Vector2.ZERO
+	var avatar := _make_avatar_initial_circle(40, COLOR_PRIMARY_STRONG, avatar_initial, 13)
+	avatar.position = Vector2(0.0, 12.0)
 	row.add_child(avatar)
 
 	var name := _make_absolute_label(player_name, 16, COLOR_INK, 800)
 	name.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	name.clip_text = true
-	name.position = Vector2(54.0, 10.0)
-	name.size = Vector2(max(112.0, width - 148.0), 28)
+	name.position = Vector2(52.0, 18.0)
+	name.size = Vector2(max(104.0, width - 152.0), 28)
 	row.add_child(name)
 
 	var status := Button.new()
 	status.text = _format_realtime_status(str(player.get("status", "lobby")))
 	status.disabled = true
 	_apply_button_theme(status, THEME_BUTTON_SMALL_SURFACE)
-	status.position = Vector2(width - 82.0, 6.0)
-	status.size = Vector2(82, 34)
+	status.position = Vector2(width - 88.0, 14.0)
+	status.size = Vector2(88, 36)
 	row.add_child(status)
 
 func _format_realtime_status(status: String) -> String:
