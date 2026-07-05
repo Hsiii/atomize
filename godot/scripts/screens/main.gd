@@ -435,7 +435,6 @@ var stage_label: Label
 var score_label: Label
 var score_unit_label: Label
 var target_label: Label
-var factors_label: Label
 var queue_label: Label
 var result_label: Label
 var leaderboard_rows_root: VBoxContainer
@@ -2067,11 +2066,6 @@ func _build_solo_layout() -> void:
 	result_label.size = Vector2(viewport_size.x - 48.0, 28)
 	add_child(result_label)
 
-	factors_label = _make_absolute_label("", 12, COLOR_INK, 700)
-	factors_label.position = Vector2(24, 520)
-	factors_label.size = Vector2(viewport_size.x - 48.0, 24)
-	add_child(factors_label)
-
 	prime_grid = GridContainer.new()
 	prime_grid.columns = 3
 	prime_grid.add_theme_constant_override("h_separation", int(SOLO_KEY_GAP))
@@ -2173,8 +2167,6 @@ func _render_solo() -> void:
 	score_label.text = str(int(solo_state["score"]))
 	stage_label.text = "Stage %s" % [int(solo_state["clearedStages"]) + 1]
 	target_label.text = str(stage["remainingValue"])
-	factors_label.text = "%s left" % stage["remainingFactors"].size()
-	factors_label.visible = true
 	var queue_text := _format_queue_label(prime_queue)
 	queue_label.text = queue_text
 	queue_label.modulate.a = 1.0 if not queue_text.is_empty() else 0.46
