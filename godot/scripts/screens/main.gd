@@ -3424,9 +3424,24 @@ func _add_battle_result_column(
 	container.add_child(column)
 
 	var player_name := BATTLE_GUEST_NAME if player == null else str(player.get("name", BATTLE_GUEST_NAME))
+	var name_row := HBoxContainer.new()
+	name_row.custom_minimum_size = Vector2(124, 28)
+	name_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	name_row.add_theme_constant_override("separation", 4)
+	column.add_child(name_row)
+
+	if is_winner:
+		var crown_slot := Control.new()
+		crown_slot.custom_minimum_size = Vector2(16, 16)
+		crown_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		name_row.add_child(crown_slot)
+		_add_crown_icon(crown_slot, 16, COLOR_GOLD)
+
 	var name_label := _make_absolute_label(player_name, 14, COLOR_GOLD if is_winner else COLOR_INK_SOFT, 900)
-	name_label.custom_minimum_size = Vector2(124, 28)
-	column.add_child(name_label)
+	name_label.clip_text = true
+	name_label.custom_minimum_size = Vector2(0, 28)
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_row.add_child(name_label)
 
 	_add_battle_column_stat(column, "Atomized", str(0 if player == null else int(player.get("stageIndex", 0))), COLOR_PRIMARY)
 	_add_battle_column_stat(column, "Max Combo", str(0 if player == null else int(player.get("maxCombo", 0))), COLOR_PRIMARY)
@@ -3449,6 +3464,27 @@ func _add_battle_column_stat(container: VBoxContainer, label_text: String, value
 	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	value_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(value_label)
+
+func _add_crown_icon(parent: Control, size: float, color: Color) -> void:
+	var crown := Polygon2D.new()
+	crown.color = color
+	crown.polygon = PackedVector2Array([
+		Vector2(size * 0.08, size * 0.78),
+		Vector2(size * 0.20, size * 0.28),
+		Vector2(size * 0.38, size * 0.54),
+		Vector2(size * 0.50, size * 0.14),
+		Vector2(size * 0.62, size * 0.54),
+		Vector2(size * 0.80, size * 0.28),
+		Vector2(size * 0.92, size * 0.78),
+	])
+	parent.add_child(crown)
+
+	var base := ColorRect.new()
+	base.color = color
+	base.position = Vector2(size * 0.12, size * 0.78)
+	base.size = Vector2(size * 0.76, size * 0.14)
+	base.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(base)
 
 func _make_absolute_label(text: String, font_size: int, color: Color, weight: int) -> Label:
 	var label := Label.new()
