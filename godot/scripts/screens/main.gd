@@ -63,6 +63,7 @@ const HAPTIC_TAP_MS := 8
 const HAPTIC_SUCCESS_MS := 22
 const HAPTIC_FAIL_MS := 36
 const DAMAGE_POP_SECONDS := 0.78
+const SOLO_SCORE_POP_SECONDS := 0.9
 const TIMER_PENALTY_POP_SECONDS := 0.7
 const SFX_BUS_NAME := "SFX"
 const SFX_POOL_SIZE := 8
@@ -2898,7 +2899,7 @@ func _resolve_next_queued_prime() -> void:
 		_play_target_impact()
 		var score_delta := int(next_state["score"]) - int(current_state["score"])
 		if score_delta > 0:
-			_spawn_damage_pop("+%s" % score_delta, _target_pop_position(), COLOR_GOLD)
+			_spawn_damage_pop("+%s" % score_delta, _target_pop_position(), COLOR_GOLD, SOLO_SCORE_POP_SECONDS)
 		_spawn_radial_particles(
 			_target_center(),
 			THEME_PANEL_PARTICLE_PRIMARY,
@@ -3741,7 +3742,7 @@ func _particle_theme_for_color(color: Color) -> String:
 
 	return THEME_PANEL_PARTICLE_PRIMARY
 
-func _spawn_damage_pop(text: String, position: Vector2, color: Color) -> void:
+func _spawn_damage_pop(text: String, position: Vector2, color: Color, duration: float = DAMAGE_POP_SECONDS) -> void:
 	var label := _make_absolute_label(text, 18, color, 900)
 	label.position = position
 	label.size = Vector2(96, 28)
@@ -3750,8 +3751,8 @@ func _spawn_damage_pop(text: String, position: Vector2, color: Color) -> void:
 
 	var tween := label.create_tween()
 	tween.set_parallel(true)
-	tween.tween_property(label, "position", position + Vector2(0, -18), DAMAGE_POP_SECONDS).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tween.tween_property(label, "modulate", Color(1, 1, 1, 0), DAMAGE_POP_SECONDS).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.tween_property(label, "position", position + Vector2(0, -18), duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.tween_property(label, "modulate", Color(1, 1, 1, 0), duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 	tween.finished.connect(label.queue_free)
 
 func _spawn_victory_confetti(parent: Control, center: Vector2) -> void:
