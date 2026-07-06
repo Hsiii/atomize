@@ -4,10 +4,8 @@ import {
     ChevronUp,
     CircleUserRound,
     Crown,
-    LogIn,
-    LogOut,
+    Menu,
     Play,
-    Settings,
     Swords,
     Timer,
     UsersRound,
@@ -27,11 +25,8 @@ type MenuScreenProps = {
     onOpenSolo: (e: React.MouseEvent<HTMLButtonElement>) => void;
     onOpenBattle: () => void;
     onOpenTutorial?: () => void;
-    onLogout: () => void;
     isGuest: boolean;
     needsTutorial?: boolean;
-    playerName: string;
-    userEmail?: string;
 };
 
 export function MenuScreen({
@@ -44,17 +39,14 @@ export function MenuScreen({
     onOpenSolo,
     onOpenBattle,
     onOpenTutorial,
-    onLogout,
     isGuest,
     needsTutorial,
-    playerName,
-    userEmail,
 }: MenuScreenProps): JSX.Element {
-    const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
     const [clickedMode, setClickedMode] = useState<string | undefined>(
         undefined
     );
-    const profileMenuRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
     const [visibleToast, setVisibleToast] = useState<string | undefined>(
         undefined
     );
@@ -81,32 +73,24 @@ export function MenuScreen({
     );
 
     useEffect(() => {
-        if (!profileMenuOpen) {
+        if (!menuOpen) {
             return undefined;
         }
 
         function handleClickOutside(event: MouseEvent) {
             if (
-                profileMenuRef.current &&
-                !profileMenuRef.current.contains(event.target as Node)
+                menuRef.current &&
+                !menuRef.current.contains(event.target as Node)
             ) {
-                setProfileMenuOpen(false);
-            }
-        }
-
-        function handleEscape(event: KeyboardEvent) {
-            if (event.key === 'Escape') {
-                setProfileMenuOpen(false);
+                setMenuOpen(false);
             }
         }
 
         document.addEventListener('pointerdown', handleClickOutside);
-        document.addEventListener('keydown', handleEscape);
         return () => {
             document.removeEventListener('pointerdown', handleClickOutside);
-            document.removeEventListener('keydown', handleEscape);
         };
-    }, [profileMenuOpen]);
+    }, [menuOpen]);
 
     function showMenuToast(message: string) {
         if (toastTimeoutRef.current !== undefined) {
@@ -132,115 +116,87 @@ export function MenuScreen({
                         {uiText.versionLabel}
                     </div>
                     {!needsTutorial && (
-                        <div className='profile-menu' ref={profileMenuRef}>
+                        <div className='hamburger-menu' ref={menuRef}>
                             <button
-                                aria-expanded={profileMenuOpen}
-                                aria-label={uiText.accountTitle}
-                                className='profile-menu-toggle'
+                                aria-expanded={menuOpen}
+                                aria-label='Menu'
+                                className='hamburger-toggle'
                                 onClick={() => {
-                                    setProfileMenuOpen((prev) => !prev);
+                                    setMenuOpen((prev) => !prev);
                                 }}
                                 type='button'
                             >
-                                <CircleUserRound
-                                    className={`profile-menu-icon profile-menu-icon-user${
-                                        profileMenuOpen
-                                            ? ' profile-menu-icon-hidden'
-                                            : ''
+                                <Menu
+                                    className={`hamburger-icon hamburger-icon-bars${
+                                        menuOpen ? ' hamburger-icon-hidden' : ''
                                     }`}
                                     size={22}
                                 />
                                 <ChevronUp
-                                    className={`profile-menu-icon profile-menu-icon-chevron${
-                                        profileMenuOpen
-                                            ? ''
-                                            : ' profile-menu-icon-hidden'
+                                    className={`hamburger-icon hamburger-icon-chevron${
+                                        menuOpen ? '' : ' hamburger-icon-hidden'
                                     }`}
                                     size={22}
                                 />
                             </button>
                             <div
-                                className={`profile-menu-dropdown${
-                                    profileMenuOpen
-                                        ? ' profile-menu-dropdown-open'
-                                        : ''
+                                className={`hamburger-dropdown${
+                                    menuOpen ? ' hamburger-dropdown-open' : ''
                                 }`}
                             >
-                                {isGuest ? (
-                                    <button
-                                        className='profile-menu-action'
-                                        onClick={() => {
-                                            setProfileMenuOpen(false);
-                                            onOpenAuth();
-                                        }}
-                                        type='button'
-                                    >
-                                        <LogIn size={20} />
-                                        <span>{uiText.signIn}</span>
-                                    </button>
-                                ) : (
-                                    <div className='profile-menu-identity'>
-                                        <span className='profile-menu-label'>
-                                            {uiText.email}
-                                        </span>
-                                        <span className='profile-menu-email'>
-                                            {userEmail ?? playerName}
-                                        </span>
-                                    </div>
-                                )}
-
-                                {isGuest ? undefined : (
-                                    <>
-                                        <button
-                                            className='profile-menu-action'
-                                            onClick={() => {
-                                                setProfileMenuOpen(false);
-                                                onOpenAccount();
-                                            }}
-                                            type='button'
-                                        >
-                                            <Settings size={20} />
-                                            <span>{uiText.settings}</span>
-                                        </button>
-                                        <button
-                                            className='profile-menu-action'
-                                            onClick={() => {
-                                                setProfileMenuOpen(false);
-                                                onOpenFriends();
-                                            }}
-                                            type='button'
-                                        >
-                                            <UsersRound size={20} />
-                                            <span>{uiText.friendsTitle}</span>
-                                        </button>
-                                    </>
-                                )}
-
                                 <button
-                                    className='profile-menu-action'
+                                    className='hamburger-toggle'
                                     onClick={() => {
-                                        setProfileMenuOpen(false);
-                                        onOpenLeaderboard();
+                                        setMenuOpen(false);
+
+                                        if (isGuest) {
+                                            onOpenAuth();
+                                            return;
+                                        }
+
+                                        onOpenAccount();
                                     }}
+                                    title={
+                                        isGuest
+                                            ? uiText.signIn
+                                            : uiText.accountTitle
+                                    }
                                     type='button'
                                 >
-                                    <Crown size={20} />
-                                    <span>{uiText.leaderboardTitle}</span>
+                                    <CircleUserRound size={22} />
                                 </button>
+                                <button
+                                    className='hamburger-toggle'
+                                    onClick={() => {
+                                        setMenuOpen(false);
 
-                                {isGuest ? undefined : (
-                                    <button
-                                        className='profile-menu-action profile-menu-action-danger'
-                                        onClick={() => {
-                                            setProfileMenuOpen(false);
-                                            onLogout();
-                                        }}
-                                        type='button'
-                                    >
-                                        <LogOut size={20} />
-                                        <span>{uiText.logout}</span>
-                                    </button>
-                                )}
+                                        if (isGuest) {
+                                            onOpenAuth();
+                                            return;
+                                        }
+
+                                        onOpenFriends();
+                                    }}
+                                    title={
+                                        isGuest
+                                            ? uiText.signIn
+                                            : uiText.friendsTitle
+                                    }
+                                    type='button'
+                                >
+                                    <UsersRound size={22} />
+                                </button>
+                                <button
+                                    className='hamburger-toggle'
+                                    onClick={() => {
+                                        setMenuOpen(false);
+                                        onOpenLeaderboard();
+                                    }}
+                                    title={uiText.leaderboardTitle}
+                                    type='button'
+                                >
+                                    <Crown size={22} />
+                                </button>
                             </div>
                         </div>
                     )}
