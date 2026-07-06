@@ -18,8 +18,15 @@ import {
 } from './lib/app-helpers';
 
 function MenuPage(): JSX.Element {
-    const { session, isGuest, localCpuGame, multiplayerGame, navigateTo } =
-        useAppContext();
+    const {
+        session,
+        isGuest,
+        localCpuGame,
+        multiplayerGame,
+        navigateTo,
+        playerName,
+        handleLogout,
+    } = useAppContext();
     const needsTutorial = !isTutorialComplete();
 
     const toastId = localCpuGame.isInRoom ? 0 : multiplayerGame.lobbyToast.id;
@@ -31,6 +38,10 @@ function MenuPage(): JSX.Element {
         <MenuScreen
             isGuest={isGuest || !session}
             needsTutorial={needsTutorial}
+            onLogout={() => {
+                handleLogout();
+                navigateTo('/');
+            }}
             onOpenAccount={() => {
                 navigateTo('/account');
             }}
@@ -52,8 +63,10 @@ function MenuPage(): JSX.Element {
             onOpenTutorial={() => {
                 navigateTo('/tutorial');
             }}
+            playerName={playerName}
             toastId={toastId}
             toastMessage={toastMessage}
+            userEmail={session?.user.email}
         />
     );
 }
