@@ -4,7 +4,9 @@ const Game := preload("res://scripts/core/game.gd")
 const BattleRoom := preload("res://scripts/core/multiplayer_room.gd")
 const SupabaseClient := preload("res://scripts/core/supabase_client.gd")
 
+const LOCAL_SAVE_VERSION := 1
 const BEST_SCORE_PATH := "user://best_score.json"
+const EXPERIENCE_PATH := "user://experience.json"
 const TUTORIAL_COMPLETE_PATH := "user://tutorial_complete.txt"
 const BATTLE_BOT_ID := "atom-bot"
 const BATTLE_BOT_NAME := "AtomBot"
@@ -27,6 +29,9 @@ const SOLO_SEED_PREFIX := "godot-mobile"
 const SOLO_SCORE_REDESIGN_AT := "2026-04-07T10:48:36.000Z"
 const HISTORIC_SOLO_SCORE_FACTOR := 0.5
 const HISTORIC_SOLO_SCORE_CAP := 600
+const BATTLE_WIN_EXPERIENCE := 150
+const BATTLE_TIE_EXPERIENCE := 50
+const BATTLE_LOSS_EXPERIENCE := 30
 const DESKTOP_PRIME_KEYBINDS := ["r", "t", "y", "f", "g", "h", "v", "b", "n"]
 const DESKTOP_BACKSPACE_KEY := "u"
 const DESKTOP_SUBMIT_KEY := "j"
@@ -394,6 +399,7 @@ var last_result_text := ""
 var keyboard_buffered_prime_input := ""
 var best_score := 0
 var best_combo := 0
+var player_experience := 0
 var did_set_new_best := false
 var home_menu_open := false
 var needs_tutorial := false
@@ -478,6 +484,7 @@ func _ready() -> void:
 	theme = _make_app_theme()
 	best_score = _load_best_score()
 	best_combo = _load_best_combo()
+	player_experience = _load_experience()
 	needs_tutorial = not _is_tutorial_complete()
 	match _get_requested_screen():
 		"help":
@@ -1287,6 +1294,7 @@ func _finish_game() -> void:
 	var final_score := int(solo_state["score"])
 	var final_combo := int(solo_state["maxCombo"])
 	did_set_new_best = _save_best_score(final_score, final_combo)
+	_add_experience(_solo_exp_gained(final_score))
 	best_score = _load_best_score()
 	best_combo = _load_best_combo()
 	_render_solo()
@@ -1358,6 +1366,7 @@ func _build_home_layout() -> void:
 		(viewport_size.y * 0.25) - 36.0
 	)
 	add_child(title_row)
+	_add_home_level_badge(viewport_size, title_row.position.y + title_row.size.y + 4.0)
 
 	var total_blob_width := (HOME_BLOB_SIZE * 2.0) + HOME_BLOB_GAP
 	var blob_left := (viewport_size.x - total_blob_width) / 2.0
@@ -1379,6 +1388,18 @@ func _build_home_layout() -> void:
 	battle_button.position = Vector2(blob_left + HOME_BLOB_SIZE + HOME_BLOB_GAP, blob_top)
 	add_child(battle_button)
 	_start_home_blob_idle(battle_button, true)
+
+func _add_home_level_badge(viewport_size: Vector2, top: float) -> void:
+	var level := _calculate_level(player_experience)
+	var badge := Panel.new()
+	badge.size = Vector2(88, 32)
+	badge.position = Vector2((viewport_size.x - badge.size.x) / 2.0, top)
+	_apply_panel_theme(badge, THEME_PANEL_BADGE_SURFACE)
+	add_child(badge)
+
+	var label := _make_absolute_label("Lv. %d" % level, 13, COLOR_PRIMARY, 800)
+	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	badge.add_child(label)
 
 func _build_home_dropdown(position: Vector2) -> void:
 	if not home_menu_open:
@@ -2173,7 +2194,7 @@ func _build_game_over_layout() -> void:
 
 	_add_dialog_stat_row(stats, "Atomized", int(solo_state["clearedStages"]))
 	_add_dialog_stat_row(stats, "Max Combo", int(solo_state["maxCombo"]))
-	var exp_gained := int(floor(float(solo_state["score"]) / 10.0))
+	var exp_gained := _solo_exp_gained(int(solo_state["score"]))
 	if exp_gained > 0:
 		_add_dialog_stat_text_row(stats, "EXP", "+%d" % exp_gained)
 
@@ -2527,6 +2548,8 @@ func _build_battle_over_overlay() -> void:
 	var player = BattleRoom.find_player(battle_snapshot["players"], BATTLE_PLAYER_ID)
 	var bot = BattleRoom.find_player(battle_snapshot["players"], BATTLE_BOT_ID)
 	var did_win := player != null and bot != null and int(bot["hp"]) <= 0 and int(player["hp"]) > 0
+	var exp_gained := 0 if tutorial_active else _battle_exp_gained(player, bot, did_win)
+	_add_experience(exp_gained)
 	_play_sfx("success" if did_win else "fail")
 
 	var overlay := _make_modal_overlay()
@@ -2547,7 +2570,7 @@ func _build_battle_over_overlay() -> void:
 	columns.add_theme_constant_override("separation", 8)
 	panel.add_child(columns)
 
-	_add_battle_result_column(columns, player, did_win, true, _battle_exp_gained(player, bot, did_win))
+	_add_battle_result_column(columns, player, did_win, true, exp_gained)
 
 	var divider := ColorRect.new()
 	divider.color = COLOR_BORDER_SOFT
@@ -2567,12 +2590,12 @@ func _build_battle_over_overlay() -> void:
 
 func _battle_exp_gained(player, opponent, did_win: bool) -> int:
 	if did_win:
-		return 150
+		return BATTLE_WIN_EXPERIENCE
 
 	if player != null and opponent != null and int(player["hp"]) == 0 and int(opponent["hp"]) == 0:
-		return 50
+		return BATTLE_TIE_EXPERIENCE
 
-	return 30
+	return BATTLE_LOSS_EXPERIENCE
 
 func _track_tutorial_event() -> void:
 	if not tutorial_active or not battle_snapshot.has("lastEvent"):
@@ -3003,7 +3026,7 @@ func _reset_best_score() -> void:
 	best_combo = 0
 	var file := FileAccess.open(BEST_SCORE_PATH, FileAccess.WRITE)
 	if file != null:
-		file.store_string(JSON.stringify({"score": 0, "maxCombo": 0}))
+		file.store_string(JSON.stringify({"version": LOCAL_SAVE_VERSION, "score": 0, "maxCombo": 0}))
 
 	_start_home()
 
@@ -3031,16 +3054,66 @@ func _save_best_score(score: int, max_combo: int) -> bool:
 	var record := _load_best_record()
 	var current_best_score := int(record.get("score", 0))
 	var current_best_combo := int(record.get("maxCombo", 0))
+	var next_best_score := maxi(score, current_best_score)
+	var next_best_combo := maxi(max_combo, current_best_combo)
+	var is_new_high_score := score > current_best_score
 
-	if score < current_best_score or (score == current_best_score and max_combo <= current_best_combo):
-		return false
+	if next_best_score == current_best_score and next_best_combo == current_best_combo:
+		return is_new_high_score
 
 	var file := FileAccess.open(BEST_SCORE_PATH, FileAccess.WRITE)
 	if file == null:
 		return false
 
-	file.store_string(JSON.stringify({"score": score, "maxCombo": max_combo}))
-	return true
+	file.store_string(JSON.stringify({
+		"version": LOCAL_SAVE_VERSION,
+		"score": next_best_score,
+		"maxCombo": next_best_combo,
+	}))
+	return is_new_high_score
+
+func _solo_exp_gained(score: int) -> int:
+	return maxi(0, int(floor(float(score) / 10.0)))
+
+func _calculate_level(experience: int) -> int:
+	return floori(sqrt(float(maxi(0, experience)) / 100.0)) + 1
+
+func _add_experience(experience_gain: int) -> int:
+	var normalized_gain := maxi(0, experience_gain)
+	if normalized_gain == 0:
+		return player_experience
+
+	player_experience = _save_experience(player_experience + normalized_gain)
+	return player_experience
+
+func _load_experience() -> int:
+	if not FileAccess.file_exists(EXPERIENCE_PATH):
+		return 0
+
+	var file := FileAccess.open(EXPERIENCE_PATH, FileAccess.READ)
+	if file == null:
+		return 0
+
+	var parsed = JSON.parse_string(file.get_as_text())
+	if typeof(parsed) == TYPE_DICTIONARY:
+		return maxi(0, int(parsed.get("experience", 0)))
+
+	if typeof(parsed) == TYPE_FLOAT or typeof(parsed) == TYPE_INT:
+		return maxi(0, int(parsed))
+
+	return 0
+
+func _save_experience(experience: int) -> int:
+	var normalized_experience := maxi(0, experience)
+	var file := FileAccess.open(EXPERIENCE_PATH, FileAccess.WRITE)
+	if file == null:
+		return player_experience
+
+	file.store_string(JSON.stringify({
+		"version": LOCAL_SAVE_VERSION,
+		"experience": normalized_experience,
+	}))
+	return normalized_experience
 
 func _make_app_theme() -> Theme:
 	var app_theme := Theme.new()
