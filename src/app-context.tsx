@@ -2,11 +2,11 @@ import { createContext, useContext } from 'react';
 import type { JSX } from 'react';
 import type { Session } from '@supabase/supabase-js';
 
-import type { LeaderboardEntry } from './components/menu/LeaderboardScreen';
 import type { useLocalCpuGame } from './hooks/useLocalCpuGame';
 import type { useMultiplayerGame } from './hooks/useMultiplayerGame';
 import type { useSoloGame } from './hooks/useSoloGame';
 import type { useTutorialGame } from './hooks/useTutorialGame';
+import type { LeaderboardEntry } from './lib/leaderboard';
 
 export type AppContextValue = {
     session: Session | undefined;

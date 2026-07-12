@@ -7,8 +7,6 @@ import type { AppContextValue } from './app-context';
 import { seoText, uiText } from './app-state';
 import type { PendingInvitation, Screen } from './app-state';
 import { ActionButton } from './components/game/ui/ActionButton';
-import { fetchLeaderboardData } from './components/menu/LeaderboardScreen';
-import type { LeaderboardEntry } from './components/menu/LeaderboardScreen';
 import { BurstTransition } from './components/ui/BurstTransition';
 import { useLocalCpuGame } from './hooks/useLocalCpuGame';
 import { useMultiplayerGame } from './hooks/useMultiplayerGame';
@@ -30,6 +28,8 @@ import {
     setGuestModeEnabled,
 } from './lib/app-helpers';
 import type { Database } from './lib/database.types';
+import { fetchLeaderboardData } from './lib/leaderboard';
+import type { LeaderboardEntry } from './lib/leaderboard';
 import { GOOGLE_AUTH_POPUP_NAME, supabaseAuthClient } from './lib/supabase';
 import { AppRoutes } from './router';
 
@@ -363,7 +363,8 @@ export default function App(): JSX.Element {
                         currentSession: data.session,
                         fallbackName: getAuthDisplayName(
                             data.session.user.user_metadata as
-                                Record<string, unknown> | undefined,
+                                | Record<string, unknown>
+                                | undefined,
                             data.session.user.email
                         ),
                         onPlayerName: setPlayerName,
@@ -391,7 +392,8 @@ export default function App(): JSX.Element {
                             currentSession,
                             fallbackName: getAuthDisplayName(
                                 currentSession.user.user_metadata as
-                                    Record<string, unknown> | undefined,
+                                    | Record<string, unknown>
+                                    | undefined,
                                 currentSession.user.email
                             ),
                             onPlayerName: setPlayerName,
