@@ -31,9 +31,13 @@ const HISTORIC_SOLO_SCORE_CAP := 600
 const BATTLE_WIN_EXPERIENCE := 150
 const BATTLE_TIE_EXPERIENCE := 50
 const BATTLE_LOSS_EXPERIENCE := 30
-const DESKTOP_PRIME_KEYBINDS := ["r", "t", "y", "f", "g", "h", "v", "b", "n"]
-const DESKTOP_BACKSPACE_KEY := "u"
-const DESKTOP_SUBMIT_KEY := "j"
+const DESKTOP_PRIME_KEYCODES := [KEY_R, KEY_T, KEY_Y, KEY_F, KEY_G, KEY_H, KEY_V, KEY_B, KEY_N]
+const DESKTOP_DIGIT_KEYCODES := [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9]
+const INPUT_ACTION_GAME_BACKSPACE := &"atom_game_backspace"
+const INPUT_ACTION_GAME_SUBMIT := &"atom_game_submit"
+const INPUT_ACTION_GAME_SPACE := &"atom_game_space"
+const INPUT_ACTION_PRIME_PREFIX := "atom_prime_"
+const INPUT_ACTION_DIGIT_PREFIX := "atom_digit_"
 const REALTIME_LOBBY_TOPIC := "realtime:atomize:lobby"
 const REALTIME_ROOM_TOPIC_PREFIX := "realtime:atomize:"
 const REALTIME_HEARTBEAT_SECONDS := 25.0
@@ -506,6 +510,7 @@ var player_name_input: LineEdit
 
 func _ready() -> void:
 	get_tree().set_quit_on_go_back(false)
+	_ensure_gameplay_input_actions()
 	_ensure_audio_buses()
 	_build_sfx_pool()
 	save_manager = SaveManager.new()
@@ -549,6 +554,47 @@ func _get_requested_screen() -> String:
 func _create_guest_display_name() -> String:
 	var guest_number := (Time.get_ticks_usec() % 999) + 1
 	return "%s%s" % [BATTLE_GUEST_NAME, guest_number]
+
+func _ensure_gameplay_input_actions() -> void:
+	_ensure_key_action(INPUT_ACTION_GAME_BACKSPACE, [KEY_BACKSPACE, KEY_U])
+	_ensure_key_action(INPUT_ACTION_GAME_SUBMIT, [KEY_ENTER, KEY_KP_ENTER, KEY_J])
+	_ensure_key_action(INPUT_ACTION_GAME_SPACE, [KEY_SPACE])
+
+	for index in range(DESKTOP_PRIME_KEYCODES.size()):
+		_ensure_key_action(_prime_action_name(index), [int(DESKTOP_PRIME_KEYCODES[index])])
+
+	for index in range(DESKTOP_DIGIT_KEYCODES.size()):
+		_ensure_key_action(_digit_action_name(index + 1), [int(DESKTOP_DIGIT_KEYCODES[index])])
+
+func _ensure_key_action(action_name: StringName, keycodes: Array) -> void:
+	if not InputMap.has_action(action_name):
+		InputMap.add_action(action_name)
+
+	for keycode in keycodes:
+		if _action_has_key(action_name, int(keycode)):
+			continue
+
+		var key_event := InputEventKey.new()
+		key_event.keycode = int(keycode)
+		key_event.physical_keycode = int(keycode)
+		InputMap.action_add_event(action_name, key_event)
+
+func _action_has_key(action_name: StringName, keycode: int) -> bool:
+	for event in InputMap.action_get_events(action_name):
+		var key_event := event as InputEventKey
+		if key_event == null:
+			continue
+
+		if key_event.keycode == keycode or key_event.physical_keycode == keycode:
+			return true
+
+	return false
+
+func _prime_action_name(index: int) -> StringName:
+	return StringName("%s%d" % [INPUT_ACTION_PRIME_PREFIX, index])
+
+func _digit_action_name(digit: int) -> StringName:
+	return StringName("%s%d" % [INPUT_ACTION_DIGIT_PREFIX, digit])
 
 func _build_network_nodes() -> void:
 	network_root = Node.new()
@@ -1312,79 +1358,54 @@ func _handle_game_keyboard_input(event: InputEvent) -> bool:
 	if screen != Screen.SOLO and screen != Screen.BATTLE_GAME:
 		return false
 
-	if not (event is InputEventKey):
-		return false
-
 	var key_event := event as InputEventKey
-	if key_event.alt_pressed or key_event.ctrl_pressed or key_event.meta_pressed:
+	if key_event != null and (key_event.alt_pressed or key_event.ctrl_pressed or key_event.meta_pressed):
 		return false
 
-	var key_text := _keyboard_event_text(key_event)
-	if key_text == "backspace":
+	if event.is_action_pressed(INPUT_ACTION_GAME_BACKSPACE):
 		if _is_game_keyboard_busy() or (keyboard_buffered_prime_input.is_empty() and _active_prime_queue_size() == 0):
 			return false
 
 		_handle_keyboard_backspace()
 		return true
 
-	if key_text == " " or key_text == "space":
+	if event.is_action_pressed(INPUT_ACTION_GAME_SPACE):
 		_handle_keyboard_space()
 		return true
 
-	if key_text == "enter" or key_text == "kp enter":
+	if event.is_action_pressed(INPUT_ACTION_GAME_SUBMIT):
 		_handle_keyboard_submit()
 		return true
 
-	if key_event.echo:
+	if key_event != null and key_event.echo:
 		return false
 
-	var direct_prime := _desktop_prime_from_key(key_text)
+	var direct_prime := _prime_from_input_action(event)
 	if direct_prime != 0:
 		_handle_keyboard_prime(direct_prime)
 		return true
 
-	if key_text == DESKTOP_BACKSPACE_KEY:
-		if _is_game_keyboard_busy() or (keyboard_buffered_prime_input.is_empty() and _active_prime_queue_size() == 0):
-			return false
-
-		_handle_keyboard_backspace()
-		return true
-
-	if key_text == DESKTOP_SUBMIT_KEY:
-		_handle_keyboard_submit()
-		return true
-
-	if key_text.length() == 1 and key_text >= "1" and key_text <= "9":
-		_handle_keyboard_digit(key_text)
+	var digit := _digit_from_input_action(event)
+	if not digit.is_empty():
+		_handle_keyboard_digit(digit)
 		return true
 
 	return false
 
-func _keyboard_event_text(event: InputEventKey) -> String:
-	if event.keycode == KEY_BACKSPACE:
-		return "backspace"
-
-	if event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER:
-		return "enter"
-
-	if event.keycode == KEY_SPACE:
-		return " "
-
-	if event.unicode > 0:
-		return String.chr(event.unicode).to_lower()
-
-	return OS.get_keycode_string(event.keycode).to_lower()
-
-func _desktop_prime_from_key(key_text: String) -> int:
-	var key_index := DESKTOP_PRIME_KEYBINDS.find(key_text)
-	if key_index == -1:
-		return 0
-
+func _prime_from_input_action(event: InputEvent) -> int:
 	var playable_primes := Game.get_playable_stage_primes()
-	if key_index >= playable_primes.size():
-		return 0
+	for index in range(playable_primes.size()):
+		if event.is_action_pressed(_prime_action_name(index)):
+			return int(playable_primes[index])
 
-	return int(playable_primes[key_index])
+	return 0
+
+func _digit_from_input_action(event: InputEvent) -> String:
+	for digit in range(1, 10):
+		if event.is_action_pressed(_digit_action_name(digit)):
+			return str(digit)
+
+	return ""
 
 func _handle_keyboard_prime(prime: int) -> void:
 	_clear_keyboard_prime_input(false)
