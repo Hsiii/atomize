@@ -2781,7 +2781,6 @@ func _build_battle_game_layout() -> void:
 
 	var viewport_size := get_viewport_rect().size
 	var safe_top := _safe_area_top()
-	var safe_bottom := _safe_area_bottom()
 	var safe_left := _safe_area_left()
 	var safe_right := _safe_area_right()
 
@@ -2862,33 +2861,7 @@ func _build_battle_game_layout() -> void:
 	queue_label.size = Vector2(viewport_size.x - 48.0 - safe_left - safe_right, 28)
 	add_child(queue_label)
 
-	prime_grid = GridContainer.new()
-	prime_grid.columns = 3
-	prime_grid.add_theme_constant_override("h_separation", int(SOLO_KEY_GAP))
-	prime_grid.add_theme_constant_override("v_separation", int(SOLO_KEY_GAP))
-	prime_grid.position = Vector2(12.0 + safe_left, viewport_size.y - (SOLO_KEY_SIZE * 3.0) - (SOLO_KEY_GAP * 2.0) - SOLO_CONTROL_BOTTOM_MARGIN - safe_bottom)
-	prime_grid.size = Vector2((SOLO_KEY_SIZE * 3.0) + (SOLO_KEY_GAP * 2.0), (SOLO_KEY_SIZE * 3.0) + (SOLO_KEY_GAP * 2.0))
-	add_child(prime_grid)
-
-	for prime in Game.get_playable_stage_primes():
-		var button := _make_prime_key_button(str(prime))
-		button.pressed.connect(_queue_battle_prime.bind(int(prime)))
-		prime_grid.add_child(button)
-
-	var action_x := prime_grid.position.x + prime_grid.size.x + SOLO_KEY_GAP
-	backspace_button = _make_icon_text_button("", COLOR_PRIMARY_STRONG, COLOR_INK, 28, "backspace")
-	backspace_button.position = Vector2(action_x, prime_grid.position.y)
-	backspace_button.size = Vector2(SOLO_KEY_SIZE, SOLO_KEY_SIZE)
-	_add_delete_icon(backspace_button, SOLO_KEY_SIZE, SOLO_KEY_SIZE, _get_button_text_color(COLOR_PRIMARY_STRONG))
-	backspace_button.pressed.connect(_backspace_battle_queue)
-	add_child(backspace_button)
-
-	submit_button = _make_icon_text_button("", COLOR_PRIMARY_STRONG, COLOR_INK, 34, "submit")
-	submit_button.position = Vector2(action_x, prime_grid.position.y + SOLO_KEY_SIZE + SOLO_KEY_GAP)
-	submit_button.size = Vector2(SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP)
-	_add_submit_icon(submit_button, SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP, _get_button_text_color(COLOR_PRIMARY_STRONG))
-	submit_button.pressed.connect(_submit_battle_queue)
-	add_child(submit_button)
+	_build_prime_keypad_controls(_queue_battle_prime, _backspace_battle_queue, _submit_battle_queue)
 
 func _clear_screen() -> void:
 	_clear_control_tweens()
@@ -2906,7 +2879,6 @@ func _build_solo_layout() -> void:
 
 	var viewport_size := get_viewport_rect().size
 	var safe_top := _safe_area_top()
-	var safe_bottom := _safe_area_bottom()
 	var safe_left := _safe_area_left()
 	var safe_right := _safe_area_right()
 
@@ -2970,33 +2942,7 @@ func _build_solo_layout() -> void:
 	result_label.size = Vector2(viewport_size.x - 48.0 - safe_left - safe_right, 28)
 	add_child(result_label)
 
-	prime_grid = GridContainer.new()
-	prime_grid.columns = 3
-	prime_grid.add_theme_constant_override("h_separation", int(SOLO_KEY_GAP))
-	prime_grid.add_theme_constant_override("v_separation", int(SOLO_KEY_GAP))
-	prime_grid.position = Vector2(12.0 + safe_left, viewport_size.y - (SOLO_KEY_SIZE * 3.0) - (SOLO_KEY_GAP * 2.0) - SOLO_CONTROL_BOTTOM_MARGIN - safe_bottom)
-	prime_grid.size = Vector2((SOLO_KEY_SIZE * 3.0) + (SOLO_KEY_GAP * 2.0), (SOLO_KEY_SIZE * 3.0) + (SOLO_KEY_GAP * 2.0))
-	add_child(prime_grid)
-
-	for prime in Game.get_playable_stage_primes():
-		var button := _make_prime_key_button(str(prime))
-		button.pressed.connect(_queue_prime.bind(int(prime)))
-		prime_grid.add_child(button)
-
-	var action_x := prime_grid.position.x + prime_grid.size.x + SOLO_KEY_GAP
-	backspace_button = _make_icon_text_button("", COLOR_PRIMARY_STRONG, COLOR_INK, 28, "backspace")
-	backspace_button.position = Vector2(action_x, prime_grid.position.y)
-	backspace_button.size = Vector2(SOLO_KEY_SIZE, SOLO_KEY_SIZE)
-	_add_delete_icon(backspace_button, SOLO_KEY_SIZE, SOLO_KEY_SIZE, _get_button_text_color(COLOR_PRIMARY_STRONG))
-	backspace_button.pressed.connect(_backspace_queue)
-	add_child(backspace_button)
-
-	submit_button = _make_icon_text_button("", COLOR_PRIMARY_STRONG, COLOR_INK, 34, "submit")
-	submit_button.position = Vector2(action_x, prime_grid.position.y + SOLO_KEY_SIZE + SOLO_KEY_GAP)
-	submit_button.size = Vector2(SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP)
-	_add_submit_icon(submit_button, SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP, _get_button_text_color(COLOR_PRIMARY_STRONG))
-	submit_button.pressed.connect(_submit_queue)
-	add_child(submit_button)
+	_build_prime_keypad_controls(_queue_prime, _backspace_queue, _submit_queue)
 
 func _build_pause_layout() -> void:
 	var overlay := _make_modal_overlay()
@@ -4321,6 +4267,60 @@ func _make_wide_page_button(text: String, callback: Callable, color: Color) -> B
 	_wire_button_feedback(button, "start")
 	button.pressed.connect(callback)
 	return button
+
+func _build_prime_keypad_controls(
+	prime_callback: Callable,
+	backspace_callback: Callable,
+	submit_callback: Callable
+) -> void:
+	var viewport_size := get_viewport_rect().size
+	var safe_left := _safe_area_left()
+	var safe_bottom := _safe_area_bottom()
+	var grid_size := (SOLO_KEY_SIZE * 3.0) + (SOLO_KEY_GAP * 2.0)
+	var controls_width := grid_size + SOLO_KEY_GAP + SOLO_KEY_SIZE
+	var controls_height := grid_size
+	var controls := HBoxContainer.new()
+	controls.name = "PrimeControls"
+	controls.position = Vector2(
+		12.0 + safe_left,
+		viewport_size.y - controls_height - SOLO_CONTROL_BOTTOM_MARGIN - safe_bottom
+	)
+	controls.size = Vector2(controls_width, controls_height)
+	controls.add_theme_constant_override("separation", int(SOLO_KEY_GAP))
+	add_child(controls)
+
+	prime_grid = GridContainer.new()
+	prime_grid.name = "PrimeGrid"
+	prime_grid.columns = 3
+	prime_grid.custom_minimum_size = Vector2(grid_size, grid_size)
+	prime_grid.add_theme_constant_override("h_separation", int(SOLO_KEY_GAP))
+	prime_grid.add_theme_constant_override("v_separation", int(SOLO_KEY_GAP))
+	controls.add_child(prime_grid)
+
+	for prime in Game.get_playable_stage_primes():
+		var button := _make_prime_key_button(str(prime))
+		button.pressed.connect(prime_callback.bind(int(prime)))
+		prime_grid.add_child(button)
+
+	var action_column := VBoxContainer.new()
+	action_column.name = "PrimeActions"
+	action_column.custom_minimum_size = Vector2(SOLO_KEY_SIZE, controls_height)
+	action_column.add_theme_constant_override("separation", int(SOLO_KEY_GAP))
+	controls.add_child(action_column)
+
+	backspace_button = _make_icon_text_button("", COLOR_PRIMARY_STRONG, COLOR_INK, 28, "backspace")
+	backspace_button.name = "BackspaceButton"
+	backspace_button.custom_minimum_size = Vector2(SOLO_KEY_SIZE, SOLO_KEY_SIZE)
+	_add_delete_icon(backspace_button, SOLO_KEY_SIZE, SOLO_KEY_SIZE, _get_button_text_color(COLOR_PRIMARY_STRONG))
+	backspace_button.pressed.connect(backspace_callback)
+	action_column.add_child(backspace_button)
+
+	submit_button = _make_icon_text_button("", COLOR_PRIMARY_STRONG, COLOR_INK, 34, "submit")
+	submit_button.name = "SubmitButton"
+	submit_button.custom_minimum_size = Vector2(SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP)
+	_add_submit_icon(submit_button, SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP, _get_button_text_color(COLOR_PRIMARY_STRONG))
+	submit_button.pressed.connect(submit_callback)
+	action_column.add_child(submit_button)
 
 func _make_prime_key_button(text: String) -> Button:
 	var button := Button.new()
