@@ -499,6 +499,7 @@ var enemy_hp_bar: ProgressBar
 var enemy_hp_label: Label
 var player_hp_bar: ProgressBar
 var player_hp_label: Label
+var player_name_input: LineEdit
 
 func _ready() -> void:
 	get_tree().set_quit_on_go_back(false)
@@ -2025,9 +2026,12 @@ func _build_home_dropdown(position: Vector2) -> void:
 
 	var dropdown := VBoxContainer.new()
 	dropdown.position = position
-	dropdown.size = Vector2(128, 156)
+	dropdown.size = Vector2(128, 208)
 	dropdown.add_theme_constant_override("separation", 8)
 	add_child(dropdown)
+
+	var name_button := _make_dropdown_button("Player", _show_player_name_dialog)
+	dropdown.add_child(name_button)
 
 	var leaderboard_button := _make_dropdown_button("Leaderboard", _start_leaderboard)
 	dropdown.add_child(leaderboard_button)
@@ -2037,6 +2041,65 @@ func _build_home_dropdown(position: Vector2) -> void:
 
 	var reset_button := _make_dropdown_button("Reset Best", _reset_best_score)
 	dropdown.add_child(reset_button)
+
+func _show_player_name_dialog() -> void:
+	home_menu_open = false
+	_build_home_layout()
+
+	var overlay := _make_modal_overlay()
+	overlay.name = "PlayerNameOverlay"
+	add_child(overlay)
+
+	var panel := _make_dialog_panel(260)
+	overlay.add_child(panel)
+	_add_dialog_header(panel, "Player")
+
+	var label := _make_absolute_label("DISPLAY NAME", 12, COLOR_INK_SOFT, 800)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	label.position = Vector2(14, 76)
+	label.size = Vector2(DIALOG_WIDTH - 28.0, 20)
+	panel.add_child(label)
+
+	player_name_input = LineEdit.new()
+	player_name_input.text = battle_player_name
+	player_name_input.max_length = SaveManager.PLAYER_NAME_LIMIT
+	player_name_input.placeholder_text = BATTLE_GUEST_NAME
+	player_name_input.position = Vector2(14, 104)
+	player_name_input.size = Vector2(DIALOG_WIDTH - 28.0, 44)
+	player_name_input.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	player_name_input.virtual_keyboard_enabled = true
+	player_name_input.text_submitted.connect(_save_player_name_from_dialog.unbind(1))
+	panel.add_child(player_name_input)
+	player_name_input.grab_focus()
+
+	var hint := _make_absolute_label("Shown in battles and leaderboard.", 12, COLOR_INK_SOFT_HINT, 600)
+	hint.position = Vector2(14, 154)
+	hint.size = Vector2(DIALOG_WIDTH - 28.0, 20)
+	panel.add_child(hint)
+
+	var actions := HBoxContainer.new()
+	actions.position = Vector2(12, 196)
+	actions.size = Vector2(DIALOG_WIDTH - 24.0, DIALOG_BUTTON_HEIGHT)
+	actions.add_theme_constant_override("separation", 8)
+	panel.add_child(actions)
+
+	actions.add_child(_make_dialog_action_button("Guest", _clear_player_name_from_dialog, COLOR_SECONDARY))
+	actions.add_child(_make_dialog_action_button("Save", _save_player_name_from_dialog, COLOR_PRIMARY_STRONG))
+
+func _save_player_name_from_dialog() -> void:
+	if not is_instance_valid(player_name_input):
+		return
+
+	var saved_name := save_manager.save_player_name(player_name_input.text)
+	battle_player_name = saved_name if not saved_name.is_empty() else _create_guest_display_name()
+	_track_realtime_presence()
+	_start_home()
+
+func _clear_player_name_from_dialog() -> void:
+	save_manager.save_player_name("")
+	battle_player_name = _create_guest_display_name()
+	_track_realtime_presence()
+	_start_home()
 
 func _build_leaderboard_layout() -> void:
 	_clear_screen()
