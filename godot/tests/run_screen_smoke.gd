@@ -49,6 +49,9 @@ func _validate_screen(main_scene: Node, screen_name: String) -> Array[String]:
 		_:
 			_expect_minimum_controls(main_scene, failures, 1, 2)
 
+	if label == "battle-game":
+		_validate_attack_vfx(main_scene, failures)
+
 	return failures
 
 func _validate_gameplay_keypad(main_scene: Node, failures: Array[String]) -> void:
@@ -74,6 +77,43 @@ func _validate_gameplay_keypad(main_scene: Node, failures: Array[String]) -> voi
 	var submit := main_scene.find_child("SubmitButton", true, false)
 	if submit == null or not (submit is Button):
 		failures.append("missing SubmitButton")
+
+func _validate_attack_vfx(main_scene: Node, failures: Array[String]) -> void:
+	if not main_scene.has_method("_spawn_attack_particles"):
+		failures.append("missing attack particle spawner")
+		return
+
+	main_scene.call(
+		"_spawn_attack_particles",
+		Vector2(96, 440),
+		Vector2(260, 48),
+		"AtomPanelParticlePrimary",
+		"AtomPanelParticleRingPrimary",
+		"AtomPanelAttackBallPrimary",
+		24,
+		Callable()
+	)
+
+	var bullet_node: Node = main_scene.find_child("AttackBullet", true, false)
+	if bullet_node == null or not (bullet_node is Control):
+		failures.append("attack VFX did not spawn AttackBullet")
+		return
+
+	for child_name in ["AttackBulletGlow", "AttackBulletStreak", "AttackBulletCore"]:
+		if bullet_node.find_child(child_name, true, false) == null:
+			failures.append("AttackBullet missing %s" % child_name)
+
+	var flash_node: Node = main_scene.find_child("AttackImpactFlash", true, false)
+	if flash_node == null or not (flash_node is CanvasItem):
+		failures.append("attack VFX did not spawn delayed impact flash")
+	elif (flash_node as CanvasItem).modulate.a > 0.01:
+		failures.append("impact flash is visible before bullet impact")
+
+	var shockwave_node: Node = main_scene.find_child("AttackImpactShockwave", true, false)
+	if shockwave_node == null or not (shockwave_node is CanvasItem):
+		failures.append("attack VFX did not spawn delayed impact shockwave")
+	elif (shockwave_node as CanvasItem).modulate.a > 0.01:
+		failures.append("impact shockwave is visible before bullet impact")
 
 func _expect_minimum_controls(
 	main_scene: Node,

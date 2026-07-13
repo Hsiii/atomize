@@ -90,6 +90,8 @@ const BATTLE_HP_ZERO_HOLD_SECONDS := 0.9
 const BATTLE_ATTACK_FLIGHT_END := 0.82
 const BATTLE_ATTACK_IMPACT_START := 0.78
 const BATTLE_ATTACK_TRAIL_STEP := 0.06
+const BATTLE_ATTACK_LAUNCH_FLARE_SECONDS := 0.18
+const BATTLE_ATTACK_IMPACT_FLASH_SECONDS := 0.28
 const SFX_BUS_NAME := "SFX"
 const SFX_POOL_SIZE := 8
 const SFX_SAMPLE_RATE := 22050
@@ -147,6 +149,10 @@ const THEME_PANEL_PARTICLE_RING_DANGER := "AtomPanelParticleRingDanger"
 const THEME_PANEL_PARTICLE_RING_GOLD := "AtomPanelParticleRingGold"
 const THEME_PANEL_ATTACK_BALL_PRIMARY := "AtomPanelAttackBallPrimary"
 const THEME_PANEL_ATTACK_BALL_SECONDARY := "AtomPanelAttackBallSecondary"
+const THEME_PANEL_ATTACK_GLOW_PRIMARY := "AtomPanelAttackGlowPrimary"
+const THEME_PANEL_ATTACK_GLOW_SECONDARY := "AtomPanelAttackGlowSecondary"
+const THEME_PANEL_ATTACK_STREAK_PRIMARY := "AtomPanelAttackStreakPrimary"
+const THEME_PANEL_ATTACK_STREAK_SECONDARY := "AtomPanelAttackStreakSecondary"
 const THEME_PROGRESS_PRIMARY := "AtomProgressPrimary"
 const THEME_PROGRESS_SECONDARY := "AtomProgressSecondary"
 const THEME_PROGRESS_DANGER := "AtomProgressDanger"
@@ -3977,6 +3983,10 @@ func _make_app_theme() -> Theme:
 	_add_panel_theme(app_theme, THEME_PANEL_PARTICLE_RING_GOLD, "Panel", _make_outline_circle_style(RADIUS_PILL, COLOR_GOLD, PIXEL_BORDER))
 	_add_panel_theme(app_theme, THEME_PANEL_ATTACK_BALL_PRIMARY, "Panel", _make_pixel_box_style(COLOR_PRIMARY_STRONG, COLOR_BORDER_INVERSE_SOFT, PIXEL_BORDER, RADIUS_PILL))
 	_add_panel_theme(app_theme, THEME_PANEL_ATTACK_BALL_SECONDARY, "Panel", _make_pixel_box_style(COLOR_SECONDARY, COLOR_BORDER_INVERSE_SOFT, PIXEL_BORDER, RADIUS_PILL))
+	_add_panel_theme(app_theme, THEME_PANEL_ATTACK_GLOW_PRIMARY, "Panel", _make_capsule_style(_alpha_color(COLOR_PRIMARY_STRONG, 0.24)))
+	_add_panel_theme(app_theme, THEME_PANEL_ATTACK_GLOW_SECONDARY, "Panel", _make_capsule_style(_alpha_color(COLOR_SECONDARY, 0.24)))
+	_add_panel_theme(app_theme, THEME_PANEL_ATTACK_STREAK_PRIMARY, "Panel", _make_capsule_style(_alpha_color(COLOR_PRIMARY_STRONG, 0.68)))
+	_add_panel_theme(app_theme, THEME_PANEL_ATTACK_STREAK_SECONDARY, "Panel", _make_capsule_style(_alpha_color(COLOR_SECONDARY, 0.68)))
 	_add_progress_theme(app_theme, THEME_PROGRESS_PRIMARY, COLOR_PRIMARY_STRONG)
 	_add_progress_theme(app_theme, THEME_PROGRESS_SECONDARY, COLOR_SECONDARY)
 	_add_progress_theme(app_theme, THEME_PROGRESS_DANGER, COLOR_DANGER)
@@ -4859,8 +4869,11 @@ func _spawn_attack_particles(
 	var tangent := Vector2(-direction.y, direction.x)
 	var horizontal_direction := 1.0 if target.x >= source.x else -1.0
 	var control := (source + target) / 2.0 + Vector2(42.0 * horizontal_direction * spread_scale, -88.0 * spread_scale)
+	var glow_theme := _attack_glow_theme_for_ball(ball_theme)
+	var streak_theme := _attack_streak_theme_for_ball(ball_theme)
 
-	_spawn_attack_path_particle(source, control, target, ball_theme, flight_duration, 0.0, 0, lead_size, tangent, 0.0, 0.0, true)
+	_spawn_attack_launch_flare(source, direction, fill_theme, ring_theme, severity)
+	_spawn_attack_bullet(source, control, target, ball_theme, glow_theme, streak_theme, flight_duration, lead_size, severity)
 
 	for index in range(trail_count):
 		var delay := duration * (float(index) + 1.0) * BATTLE_ATTACK_TRAIL_STEP
@@ -4881,12 +4894,110 @@ func _spawn_attack_particles(
 			false
 		)
 
+	_spawn_attack_impact_flash(target, fill_theme, ring_theme, glow_theme, severity, impact_delay, impact_duration)
 	_spawn_impact_rings(target, ring_theme, severity, impact_delay, impact_duration)
 
 	if completion_callback.is_valid():
 		var completion_tween := create_tween()
 		completion_tween.tween_interval(duration)
 		completion_tween.tween_callback(completion_callback)
+
+func _spawn_attack_launch_flare(
+	center: Vector2,
+	direction: Vector2,
+	fill_theme: String,
+	ring_theme: String,
+	severity: int
+) -> void:
+	var tangent := Vector2(-direction.y, direction.x)
+	var flare_size := 16.0 + float(severity) * 4.0
+	var recoil_target := center - (direction * (20.0 + float(severity) * 4.0))
+	_spawn_attack_impact_ring(center, recoil_target, ring_theme, 0.0, BATTLE_ATTACK_LAUNCH_FLARE_SECONDS, flare_size)
+
+	var spark_count := 4 + severity
+	for index in range(spark_count):
+		var side := -1.0 if index % 2 == 0 else 1.0
+		var lane := tangent * side * (5.0 + float(index / 2) * 4.0)
+		var source := center + (lane * 0.18)
+		var target := center - (direction * (22.0 + float(index) * 5.0)) + lane
+		var size := 5.0 + float(severity) * 1.5
+		_spawn_particle(source, target, fill_theme, 0.16 + float(index) * 0.012, index, 0.0, size)
+
+func _spawn_attack_bullet(
+	source: Vector2,
+	control: Vector2,
+	target: Vector2,
+	ball_theme: String,
+	glow_theme: String,
+	streak_theme: String,
+	duration: float,
+	particle_size: float,
+	severity: int
+) -> void:
+	var bullet := _make_attack_bullet(ball_theme, glow_theme, streak_theme, particle_size, severity)
+	bullet.position = source - (bullet.size / 2.0)
+	bullet.modulate = Color(1, 1, 1, 0)
+	add_child(bullet)
+
+	var motion_tween := bullet.create_tween()
+	motion_tween.set_parallel(true)
+	motion_tween.tween_method(
+		_position_attack_bullet.bind(bullet, source, control, target),
+		0.0,
+		1.0,
+		duration
+	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	motion_tween.tween_property(
+		bullet,
+		"scale",
+		Vector2(1.08 + float(severity) * 0.04, 0.92),
+		duration * 0.55
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	motion_tween.finished.connect(bullet.queue_free)
+
+	var fade_in_duration: float = min(duration * 0.14, 0.08)
+	var fade_out_duration: float = min(duration * 0.20, 0.14)
+	var fade_tween := bullet.create_tween()
+	fade_tween.tween_property(bullet, "modulate", Color(1, 1, 1, 1), fade_in_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	fade_tween.tween_interval(max(0.01, duration - fade_in_duration - fade_out_duration))
+	fade_tween.tween_property(bullet, "modulate", Color(1, 1, 1, 0), fade_out_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+
+func _make_attack_bullet(
+	ball_theme: String,
+	glow_theme: String,
+	streak_theme: String,
+	particle_size: float,
+	severity: int
+) -> Control:
+	var bullet := Control.new()
+	bullet.name = "AttackBullet"
+	bullet.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var bullet_length := particle_size * (2.2 + float(severity) * 0.28)
+	var bullet_height: float = max(8.0, particle_size * 0.82)
+	bullet.size = Vector2(bullet_length, bullet_height)
+	bullet.pivot_offset = bullet.size / 2.0
+	bullet.scale = Vector2(0.88, 0.88)
+
+	var glow := _make_particle_panel_sized(glow_theme, Vector2(bullet_length * 1.32, bullet_height * 2.2))
+	glow.name = "AttackBulletGlow"
+	glow.position = (bullet.size - glow.size) / 2.0
+	glow.modulate = Color(1, 1, 1, 0.82)
+	bullet.add_child(glow)
+
+	var streak := _make_particle_panel_sized(streak_theme, Vector2(bullet_length * 0.82, max(4.0, bullet_height * 0.42)))
+	streak.name = "AttackBulletStreak"
+	streak.position = Vector2(0, (bullet.size.y - streak.size.y) / 2.0)
+	streak.modulate = Color(1, 1, 1, 0.78)
+	bullet.add_child(streak)
+
+	var core_size := Vector2(particle_size, particle_size)
+	var core := _make_particle_panel_sized(ball_theme, core_size)
+	core.name = "AttackBulletCore"
+	core.position = Vector2(bullet_length - (core_size.x * 0.95), (bullet.size.y - core_size.y) / 2.0)
+	bullet.add_child(core)
+
+	return bullet
 
 func _spawn_attack_path_particle(
 	source: Vector2,
@@ -4927,6 +5038,24 @@ func _spawn_attack_path_particle(
 	if not is_lead:
 		fade_tween.tween_property(particle, "modulate", Color(1, 1, 1, 0.35), max(0.01, duration - fade_in_duration)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
+func _position_attack_bullet(
+	progress: float,
+	bullet: Control,
+	source: Vector2,
+	control: Vector2,
+	target: Vector2
+) -> void:
+	if not is_instance_valid(bullet):
+		return
+
+	var t: float = clamp(progress, 0.0, 1.0)
+	var accelerated := t * t
+	var point := _quadratic_bezier_vec2(source, control, target, accelerated)
+	var tangent := _quadratic_bezier_tangent_vec2(source, control, target, accelerated)
+	if tangent.length() > 0.0:
+		bullet.rotation = tangent.angle()
+	bullet.position = point - (bullet.size / 2.0)
+
 func _position_attack_particle(
 	progress: float,
 	particle: Control,
@@ -4950,6 +5079,57 @@ func _quadratic_bezier_vec2(source: Vector2, control: Vector2, target: Vector2, 
 	var inverse := 1.0 - progress
 	return (source * inverse * inverse) + (control * 2.0 * inverse * progress) + (target * progress * progress)
 
+func _quadratic_bezier_tangent_vec2(source: Vector2, control: Vector2, target: Vector2, progress: float) -> Vector2:
+	return ((control - source) * 2.0 * (1.0 - progress)) + ((target - control) * 2.0 * progress)
+
+func _spawn_attack_impact_flash(
+	center: Vector2,
+	fill_theme: String,
+	ring_theme: String,
+	glow_theme: String,
+	severity: int,
+	delay: float,
+	duration: float
+) -> void:
+	var flash_size := _attack_impact_radius(severity) * 1.25
+	var flash := _make_particle_panel_sized(glow_theme, Vector2(flash_size, flash_size))
+	flash.name = "AttackImpactFlash"
+	flash.position = center - (flash.size / 2.0)
+	flash.scale = Vector2(0.18, 0.18)
+	flash.modulate = Color(1, 1, 1, 0)
+	add_child(flash)
+
+	var flash_tween := flash.create_tween()
+	if delay > 0.0:
+		flash_tween.tween_interval(delay)
+	flash_tween.set_parallel(true)
+	flash_tween.tween_property(flash, "scale", Vector2(1.28 + float(severity) * 0.12, 1.28 + float(severity) * 0.12), min(duration, BATTLE_ATTACK_IMPACT_FLASH_SECONDS)).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	flash_tween.tween_property(flash, "modulate", Color(1, 1, 1, 0.0), min(duration, BATTLE_ATTACK_IMPACT_FLASH_SECONDS)).from(Color(1, 1, 1, 0.74)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	flash_tween.finished.connect(flash.queue_free)
+
+	var shock_size: float = max(20.0, _attack_impact_radius(severity) * 0.74)
+	var shockwave := _make_particle_panel_sized(ring_theme, Vector2(shock_size, shock_size))
+	shockwave.name = "AttackImpactShockwave"
+	shockwave.position = center - (shockwave.size / 2.0)
+	shockwave.scale = Vector2(0.32, 0.32)
+	shockwave.modulate = Color(1, 1, 1, 0)
+	add_child(shockwave)
+
+	var shock_tween := shockwave.create_tween()
+	if delay > 0.0:
+		shock_tween.tween_interval(delay)
+	shock_tween.set_parallel(true)
+	shock_tween.tween_property(shockwave, "scale", Vector2(2.0 + float(severity) * 0.22, 2.0 + float(severity) * 0.22), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	shock_tween.tween_property(shockwave, "modulate", Color(1, 1, 1, 0), duration).from(Color(1, 1, 1, 0.84)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	shock_tween.finished.connect(shockwave.queue_free)
+
+	var spark_count := 5 + severity * 2
+	for index in range(spark_count):
+		var angle := (TAU * float(index)) / float(spark_count) + 0.18
+		var distance := _attack_impact_radius(severity) * (0.42 + float(index % 3) * 0.12)
+		var endpoint := center + Vector2(cos(angle), sin(angle)) * distance
+		_spawn_particle(center, endpoint, fill_theme, min(0.22, duration), index, delay + float(index % 2) * 0.015, 4.0 + float(severity) * 1.5)
+
 func _spawn_impact_rings(center: Vector2, ring_theme: String, severity: int, delay: float, duration: float) -> void:
 	var ring_count := _attack_ring_count(severity)
 	var radius := _attack_impact_radius(severity)
@@ -4962,21 +5142,30 @@ func _spawn_impact_rings(center: Vector2, ring_theme: String, severity: int, del
 func _spawn_attack_impact_ring(source: Vector2, target: Vector2, ring_theme: String, delay: float, duration: float, particle_size: float) -> void:
 	var particle := _make_particle_panel(ring_theme, particle_size)
 	particle.position = source - (particle.size / 2.0)
-	particle.modulate = Color(1, 1, 1, 0.9)
+	particle.modulate = Color(1, 1, 1, 0)
 	add_child(particle)
 
-	var tween := particle.create_tween()
+	var motion_tween := particle.create_tween()
 	if delay > 0.0:
-		tween.tween_interval(delay)
-	tween.set_parallel(true)
-	tween.tween_property(particle, "position", target - (particle.size / 2.0), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tween.tween_property(particle, "scale", Vector2(0.6, 0.6), duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tween.tween_property(particle, "modulate", Color(1, 1, 1, 0), duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.finished.connect(particle.queue_free)
+		motion_tween.tween_interval(delay)
+	motion_tween.set_parallel(true)
+	motion_tween.tween_property(particle, "position", target - (particle.size / 2.0), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	motion_tween.tween_property(particle, "scale", Vector2(0.6, 0.6), duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	motion_tween.finished.connect(particle.queue_free)
+
+	var fade_tween := particle.create_tween()
+	if delay > 0.0:
+		fade_tween.tween_interval(delay)
+	var fade_in_duration: float = min(0.05, duration * 0.3)
+	fade_tween.tween_property(particle, "modulate", Color(1, 1, 1, 0.9), fade_in_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	fade_tween.tween_property(particle, "modulate", Color(1, 1, 1, 0), max(0.01, duration - fade_in_duration)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 
 func _make_particle_panel(theme_name: String, particle_size: float) -> Panel:
+	return _make_particle_panel_sized(theme_name, Vector2(particle_size, particle_size))
+
+func _make_particle_panel_sized(theme_name: String, particle_size: Vector2) -> Panel:
 	var particle := Panel.new()
-	particle.size = Vector2(particle_size, particle_size)
+	particle.size = particle_size
 	particle.pivot_offset = particle.size / 2.0
 	particle.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_apply_panel_theme(particle, theme_name)
@@ -4995,17 +5184,25 @@ func _spawn_particle(
 	var particle := _make_particle_panel(theme_name, particle_size)
 	particle.position = source - (particle.size / 2.0)
 	particle.scale = Vector2(0.72, 0.72)
+	particle.modulate = Color(1, 1, 1, 0 if delay > 0.0 else 1)
 	add_child(particle)
 
 	var arc_lift := Vector2(0, -10.0 - float(index % 4) * 4.0)
-	var tween := particle.create_tween()
+	var motion_tween := particle.create_tween()
 	if delay > 0.0:
-		tween.tween_interval(delay)
-	tween.set_parallel(true)
-	tween.tween_property(particle, "position", target - (particle.size / 2.0) + arc_lift, duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tween.tween_property(particle, "scale", Vector2(0.18, 0.18), duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.tween_property(particle, "modulate", Color(1, 1, 1, 0), duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tween.finished.connect(particle.queue_free)
+		motion_tween.tween_interval(delay)
+	motion_tween.set_parallel(true)
+	motion_tween.tween_property(particle, "position", target - (particle.size / 2.0) + arc_lift, duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	motion_tween.tween_property(particle, "scale", Vector2(0.18, 0.18), duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	motion_tween.finished.connect(particle.queue_free)
+
+	var fade_tween := particle.create_tween()
+	if delay > 0.0:
+		fade_tween.tween_interval(delay)
+	var fade_in_duration: float = min(0.04, duration * 0.25)
+	if delay > 0.0:
+		fade_tween.tween_property(particle, "modulate", Color(1, 1, 1, 1), fade_in_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	fade_tween.tween_property(particle, "modulate", Color(1, 1, 1, 0), max(0.01, duration - fade_in_duration)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 
 func _attack_trail_count(severity: int) -> int:
 	match severity:
@@ -5290,6 +5487,12 @@ func _particle_ring_theme_for_player(player_id: String) -> String:
 
 func _particle_ball_theme_for_player(player_id: String) -> String:
 	return THEME_PANEL_ATTACK_BALL_SECONDARY if player_id == _battle_opponent_player_id() else THEME_PANEL_ATTACK_BALL_PRIMARY
+
+func _attack_glow_theme_for_ball(ball_theme: String) -> String:
+	return THEME_PANEL_ATTACK_GLOW_SECONDARY if ball_theme == THEME_PANEL_ATTACK_BALL_SECONDARY else THEME_PANEL_ATTACK_GLOW_PRIMARY
+
+func _attack_streak_theme_for_ball(ball_theme: String) -> String:
+	return THEME_PANEL_ATTACK_STREAK_SECONDARY if ball_theme == THEME_PANEL_ATTACK_BALL_SECONDARY else THEME_PANEL_ATTACK_STREAK_PRIMARY
 
 func _make_control_tween(control: Control, channel: String) -> Tween:
 	var key := "%s:%s" % [control.get_instance_id(), channel]
@@ -5611,8 +5814,30 @@ func _make_transparent_button_style() -> StyleBoxFlat:
 	style.bg_color = Color.TRANSPARENT
 	return style
 
+func _alpha_color(color: Color, alpha: float) -> Color:
+	return Color(color.r, color.g, color.b, alpha)
+
 func _make_circle_style(color: Color, radius: float, border_color: Color, border_width: int) -> StyleBox:
 	return _make_pixel_circle_style(color, border_color, border_width)
+
+func _make_capsule_style(
+	color: Color,
+	border_color: Color = Color.TRANSPARENT,
+	border_width: int = 0
+) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.anti_aliasing = false
+	style.corner_radius_top_left = RADIUS_PILL
+	style.corner_radius_top_right = RADIUS_PILL
+	style.corner_radius_bottom_right = RADIUS_PILL
+	style.corner_radius_bottom_left = RADIUS_PILL
+	style.border_color = border_color
+	style.border_width_left = border_width
+	style.border_width_top = border_width
+	style.border_width_right = border_width
+	style.border_width_bottom = border_width
+	return style
 
 func _make_pixel_box_style(
 	color: Color,
