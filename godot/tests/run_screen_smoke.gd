@@ -51,6 +51,7 @@ func _validate_screen(main_scene: Node, screen_name: String) -> Array[String]:
 
 	if label == "battle-game":
 		_validate_attack_vfx(main_scene, failures)
+		_validate_battle_emotion_vfx(main_scene, failures)
 
 	return failures
 
@@ -114,6 +115,20 @@ func _validate_attack_vfx(main_scene: Node, failures: Array[String]) -> void:
 		failures.append("attack VFX did not spawn delayed impact shockwave")
 	elif (shockwave_node as CanvasItem).modulate.a > 0.01:
 		failures.append("impact shockwave is visible before bullet impact")
+
+func _validate_battle_emotion_vfx(main_scene: Node, failures: Array[String]) -> void:
+	for method_name in ["_spawn_heal_stream", "_spawn_fault_shards", "_spawn_perfect_halo"]:
+		if not main_scene.has_method(method_name):
+			failures.append("missing battle emotion VFX method %s" % method_name)
+			return
+
+	main_scene.call("_spawn_heal_stream", Vector2(120, 420), Vector2(250, 96), 12)
+	main_scene.call("_spawn_fault_shards", Vector2(180, 360), 6)
+	main_scene.call("_spawn_perfect_halo", Vector2(220, 300))
+
+	for node_name in ["HealPulse", "HealMote", "FaultShard", "PerfectHalo", "PerfectOrbitMote"]:
+		if main_scene.find_child(node_name, true, false) == null:
+			failures.append("battle emotion VFX did not spawn %s" % node_name)
 
 func _expect_minimum_controls(
 	main_scene: Node,

@@ -92,6 +92,11 @@ const BATTLE_ATTACK_IMPACT_START := 0.78
 const BATTLE_ATTACK_TRAIL_STEP := 0.06
 const BATTLE_ATTACK_LAUNCH_FLARE_SECONDS := 0.18
 const BATTLE_ATTACK_IMPACT_FLASH_SECONDS := 0.28
+const BATTLE_HEAL_STREAM_SECONDS := 0.66
+const BATTLE_HEAL_STREAM_STEP := 0.055
+const BATTLE_HEAL_PULSE_SECONDS := 0.52
+const BATTLE_FAULT_RICOCHET_SECONDS := 0.34
+const BATTLE_PERFECT_HALO_SECONDS := 0.78
 const SFX_BUS_NAME := "SFX"
 const SFX_POOL_SIZE := 8
 const SFX_SAMPLE_RATE := 22050
@@ -147,6 +152,9 @@ const THEME_PANEL_PARTICLE_RING_PRIMARY := "AtomPanelParticleRingPrimary"
 const THEME_PANEL_PARTICLE_RING_SECONDARY := "AtomPanelParticleRingSecondary"
 const THEME_PANEL_PARTICLE_RING_DANGER := "AtomPanelParticleRingDanger"
 const THEME_PANEL_PARTICLE_RING_GOLD := "AtomPanelParticleRingGold"
+const THEME_PANEL_HEAL_GLOW := "AtomPanelHealGlow"
+const THEME_PANEL_FAULT_SHARD := "AtomPanelFaultShard"
+const THEME_PANEL_FAULT_GLOW := "AtomPanelFaultGlow"
 const THEME_PANEL_ATTACK_BALL_PRIMARY := "AtomPanelAttackBallPrimary"
 const THEME_PANEL_ATTACK_BALL_SECONDARY := "AtomPanelAttackBallSecondary"
 const THEME_PANEL_ATTACK_GLOW_PRIMARY := "AtomPanelAttackGlowPrimary"
@@ -3981,6 +3989,9 @@ func _make_app_theme() -> Theme:
 	_add_panel_theme(app_theme, THEME_PANEL_PARTICLE_RING_SECONDARY, "Panel", _make_outline_circle_style(RADIUS_PILL, COLOR_SECONDARY, PIXEL_BORDER))
 	_add_panel_theme(app_theme, THEME_PANEL_PARTICLE_RING_DANGER, "Panel", _make_outline_circle_style(RADIUS_PILL, COLOR_DANGER, PIXEL_BORDER))
 	_add_panel_theme(app_theme, THEME_PANEL_PARTICLE_RING_GOLD, "Panel", _make_outline_circle_style(RADIUS_PILL, COLOR_GOLD, PIXEL_BORDER))
+	_add_panel_theme(app_theme, THEME_PANEL_HEAL_GLOW, "Panel", _make_capsule_style(_alpha_color(COLOR_GOLD_STRONG, 0.24)))
+	_add_panel_theme(app_theme, THEME_PANEL_FAULT_SHARD, "Panel", _make_capsule_style(COLOR_DANGER, COLOR_BORDER_INVERSE_SOFT, PIXEL_BORDER))
+	_add_panel_theme(app_theme, THEME_PANEL_FAULT_GLOW, "Panel", _make_capsule_style(_alpha_color(COLOR_DANGER, 0.24)))
 	_add_panel_theme(app_theme, THEME_PANEL_ATTACK_BALL_PRIMARY, "Panel", _make_pixel_box_style(COLOR_PRIMARY_STRONG, COLOR_BORDER_INVERSE_SOFT, PIXEL_BORDER, RADIUS_PILL))
 	_add_panel_theme(app_theme, THEME_PANEL_ATTACK_BALL_SECONDARY, "Panel", _make_pixel_box_style(COLOR_SECONDARY, COLOR_BORDER_INVERSE_SOFT, PIXEL_BORDER, RADIUS_PILL))
 	_add_panel_theme(app_theme, THEME_PANEL_ATTACK_GLOW_PRIMARY, "Panel", _make_capsule_style(_alpha_color(COLOR_PRIMARY_STRONG, 0.24)))
@@ -4628,15 +4639,17 @@ func _play_hp_hit(bar: ProgressBar, damage: int) -> void:
 	_flash_control(bar, COLOR_DANGER, 0.56)
 	_spawn_damage_pop("-%s" % damage, _hp_pop_position(bar), COLOR_DANGER)
 
-func _play_hp_regen(bar: ProgressBar, regen: int) -> void:
+func _play_hp_regen(bar: ProgressBar, regen: int, source: Vector2) -> void:
 	if not is_instance_valid(bar) or regen <= 0:
 		return
 
+	var target := _hp_bar_center(bar)
 	_pulse_hp_bar_theme(bar, THEME_PROGRESS_GOLD, 0.54)
 	_pulse_label_color(_hp_label_for_bar(bar), COLOR_GOLD, _base_hp_color_for_bar(bar), 0.54)
 	_shine_hp_bar(bar)
 	_flash_control(bar, COLOR_GOLD, 0.48)
 	_spawn_damage_pop("+%s" % regen, _hp_pop_position(bar), COLOR_GOLD)
+	_spawn_heal_stream(source, target, regen)
 
 func _pulse_panel_theme(panel: Control, pulse_theme: String, base_theme: String, seconds: float) -> void:
 	if not is_instance_valid(panel):
@@ -4700,6 +4713,12 @@ func _shine_hp_bar(bar: ProgressBar) -> void:
 func _hp_pop_position(bar: ProgressBar) -> Vector2:
 	var y_offset := 18.0 if bar == enemy_hp_bar else -58.0
 	return bar.global_position + Vector2((bar.size.x - 96.0) / 2.0, y_offset)
+
+func _hp_bar_center(bar: ProgressBar) -> Vector2:
+	if not is_instance_valid(bar):
+		return _target_center()
+
+	return bar.global_position + (bar.size / 2.0)
 
 func _attack_severity(damage: int) -> int:
 	if damage > 30:
@@ -5204,6 +5223,278 @@ func _spawn_particle(
 		fade_tween.tween_property(particle, "modulate", Color(1, 1, 1, 1), fade_in_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	fade_tween.tween_property(particle, "modulate", Color(1, 1, 1, 0), max(0.01, duration - fade_in_duration)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 
+func _spawn_heal_stream(source: Vector2, target: Vector2, regen: int) -> void:
+	var severity := _regen_severity(regen)
+	var mote_count := _heal_mote_count(severity)
+	var delta := target - source
+	var direction := delta.normalized() if delta.length() > 0.0 else Vector2.UP
+	var tangent := Vector2(-direction.y, direction.x)
+	var control_base := (source + target) / 2.0 + Vector2(0, -48.0 - float(severity) * 16.0)
+
+	_spawn_heal_pulse(target, severity)
+
+	for index in range(mote_count):
+		var side := -1.0 if index % 2 == 0 else 1.0
+		var lane := tangent * side * (6.0 + float(index % 4) * 3.0)
+		var start := source + (lane * 0.2) - (direction * float(index % 3) * 4.0)
+		var control := control_base + (lane * 1.2) + Vector2(0, -float(index % 3) * 8.0)
+		var end := target + (lane * 0.18) + Vector2(0, -float(index % 2) * 4.0)
+		var delay := float(index) * BATTLE_HEAL_STREAM_STEP
+		var duration: float = max(0.22, BATTLE_HEAL_STREAM_SECONDS - delay * 0.25)
+		var particle_size := 6.0 + float(index % 3) * 2.0 + float(severity)
+		var theme_name := THEME_PANEL_PARTICLE_GOLD_STRONG if index % 4 == 0 else THEME_PANEL_PARTICLE_GOLD
+		_spawn_heal_mote(start, control, end, theme_name, particle_size, delay, duration)
+
+func _spawn_heal_pulse(center: Vector2, severity: int) -> void:
+	var pulse_size := 36.0 + float(severity) * 12.0
+	var pulse := _make_particle_panel_sized(THEME_PANEL_HEAL_GLOW, Vector2(pulse_size, pulse_size))
+	pulse.name = "HealPulse"
+	pulse.position = center - (pulse.size / 2.0)
+	pulse.scale = Vector2(0.32, 0.32)
+	pulse.modulate = Color(1, 1, 1, 0)
+	add_child(pulse)
+
+	var pulse_tween := pulse.create_tween()
+	pulse_tween.set_parallel(true)
+	pulse_tween.tween_property(pulse, "scale", Vector2(1.46 + float(severity) * 0.12, 1.46 + float(severity) * 0.12), BATTLE_HEAL_PULSE_SECONDS).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	pulse_tween.tween_property(pulse, "modulate", Color(1, 1, 1, 0), BATTLE_HEAL_PULSE_SECONDS).from(Color(1, 1, 1, 0.74)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	pulse_tween.finished.connect(pulse.queue_free)
+
+	var ring := _make_particle_panel_sized(THEME_PANEL_PARTICLE_RING_GOLD, Vector2(pulse_size * 0.72, pulse_size * 0.72))
+	ring.name = "HealRing"
+	ring.position = center - (ring.size / 2.0)
+	ring.scale = Vector2(0.44, 0.44)
+	ring.modulate = Color(1, 1, 1, 0)
+	add_child(ring)
+
+	var ring_tween := ring.create_tween()
+	ring_tween.set_parallel(true)
+	ring_tween.tween_property(ring, "scale", Vector2(1.8 + float(severity) * 0.16, 1.8 + float(severity) * 0.16), BATTLE_HEAL_PULSE_SECONDS * 0.92).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	ring_tween.tween_property(ring, "modulate", Color(1, 1, 1, 0), BATTLE_HEAL_PULSE_SECONDS * 0.92).from(Color(1, 1, 1, 0.86)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	ring_tween.finished.connect(ring.queue_free)
+
+func _spawn_heal_mote(
+	source: Vector2,
+	control: Vector2,
+	target: Vector2,
+	theme_name: String,
+	particle_size: float,
+	delay: float,
+	duration: float
+) -> void:
+	var mote := _make_particle_panel(theme_name, particle_size)
+	mote.name = "HealMote"
+	mote.position = source - (mote.size / 2.0)
+	mote.scale = Vector2(0.72, 0.72)
+	mote.modulate = Color(1, 1, 1, 0)
+	add_child(mote)
+
+	var motion_tween := mote.create_tween()
+	if delay > 0.0:
+		motion_tween.tween_interval(delay)
+	motion_tween.set_parallel(true)
+	motion_tween.tween_method(
+		_position_heal_mote.bind(mote, source, control, target),
+		0.0,
+		1.0,
+		duration
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	motion_tween.tween_property(mote, "scale", Vector2(0.38, 0.38), duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	motion_tween.finished.connect(mote.queue_free)
+
+	var fade_tween := mote.create_tween()
+	if delay > 0.0:
+		fade_tween.tween_interval(delay)
+	var fade_in_duration: float = min(0.1, duration * 0.28)
+	fade_tween.tween_property(mote, "modulate", Color(1, 1, 1, 1), fade_in_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	fade_tween.tween_property(mote, "modulate", Color(1, 1, 1, 0), max(0.01, duration - fade_in_duration)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+
+func _position_heal_mote(
+	progress: float,
+	mote: Control,
+	source: Vector2,
+	control: Vector2,
+	target: Vector2
+) -> void:
+	if not is_instance_valid(mote):
+		return
+
+	var t: float = clamp(progress, 0.0, 1.0)
+	var eased := 1.0 - ((1.0 - t) * (1.0 - t))
+	var point := _quadratic_bezier_vec2(source, control, target, eased)
+	mote.position = point - (mote.size / 2.0)
+
+func _spawn_fault_ricochet(source: Vector2, target: Vector2, damage: int) -> void:
+	var severity := _attack_severity(damage)
+	var delta := target - source
+	var direction := delta.normalized() if delta.length() > 0.0 else Vector2.DOWN
+	var horizontal_direction := 1.0 if target.x >= source.x else -1.0
+	var control := (source + target) / 2.0 + Vector2(28.0 * horizontal_direction, -40.0 - float(severity) * 8.0)
+	var particle_size := Vector2(20.0 + float(severity) * 4.0, 6.0 + float(severity))
+	var ricochet := _make_particle_panel_sized(THEME_PANEL_FAULT_SHARD, particle_size)
+	ricochet.name = "FaultRicochet"
+	ricochet.position = source - (ricochet.size / 2.0)
+	ricochet.rotation = direction.angle()
+	ricochet.modulate = Color(1, 1, 1, 0)
+	add_child(ricochet)
+
+	var motion_tween := ricochet.create_tween()
+	motion_tween.set_parallel(true)
+	motion_tween.tween_method(
+		_position_fault_ricochet.bind(ricochet, source, control, target),
+		0.0,
+		1.0,
+		BATTLE_FAULT_RICOCHET_SECONDS
+	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	motion_tween.finished.connect(ricochet.queue_free)
+
+	var fade_tween := ricochet.create_tween()
+	fade_tween.tween_property(ricochet, "modulate", Color(1, 1, 1, 1), 0.06).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	fade_tween.tween_interval(BATTLE_FAULT_RICOCHET_SECONDS * 0.52)
+	fade_tween.tween_property(ricochet, "modulate", Color(1, 1, 1, 0), BATTLE_FAULT_RICOCHET_SECONDS * 0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+
+	var impact_tween := create_tween()
+	impact_tween.tween_interval(BATTLE_FAULT_RICOCHET_SECONDS * 0.8)
+	impact_tween.tween_callback(_spawn_fault_shards.bind(target, 6 + severity * 2))
+
+func _position_fault_ricochet(
+	progress: float,
+	ricochet: Control,
+	source: Vector2,
+	control: Vector2,
+	target: Vector2
+) -> void:
+	if not is_instance_valid(ricochet):
+		return
+
+	var t: float = clamp(progress, 0.0, 1.0)
+	var accelerated := t * t
+	var point := _quadratic_bezier_vec2(source, control, target, accelerated)
+	var tangent := _quadratic_bezier_tangent_vec2(source, control, target, accelerated)
+	if tangent.length() > 0.0:
+		ricochet.rotation = tangent.angle()
+	ricochet.position = point - (ricochet.size / 2.0)
+
+func _spawn_fault_shards(center: Vector2, count: int = 7) -> void:
+	var glow_size := 34.0
+	var glow := _make_particle_panel_sized(THEME_PANEL_FAULT_GLOW, Vector2(glow_size, glow_size))
+	glow.name = "FaultGlow"
+	glow.position = center - (glow.size / 2.0)
+	glow.scale = Vector2(0.28, 0.28)
+	glow.modulate = Color(1, 1, 1, 0)
+	add_child(glow)
+
+	var glow_tween := glow.create_tween()
+	glow_tween.set_parallel(true)
+	glow_tween.tween_property(glow, "scale", Vector2(1.5, 1.5), 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	glow_tween.tween_property(glow, "modulate", Color(1, 1, 1, 0), 0.22).from(Color(1, 1, 1, 0.68)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	glow_tween.finished.connect(glow.queue_free)
+
+	for index in range(count):
+		var angle := (TAU * float(index)) / float(count) + 0.18
+		var distance := 18.0 + float(index % 3) * 7.0
+		var endpoint := center + Vector2(cos(angle), sin(angle)) * distance
+		_spawn_fault_shard(center, endpoint, index)
+
+func _spawn_fault_shard(source: Vector2, target: Vector2, index: int) -> void:
+	var shard_size := Vector2(10.0 + float(index % 2) * 4.0, 4.0)
+	var shard := _make_particle_panel_sized(THEME_PANEL_FAULT_SHARD, shard_size)
+	shard.name = "FaultShard"
+	shard.position = source - (shard.size / 2.0)
+	shard.rotation = (target - source).angle()
+	shard.modulate = Color(1, 1, 1, 0)
+	add_child(shard)
+
+	var duration := 0.24 + float(index % 2) * 0.04
+	var tween := shard.create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(shard, "position", target - (shard.size / 2.0), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(shard, "scale", Vector2(0.32, 0.32), duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.tween_property(shard, "modulate", Color(1, 1, 1, 0), duration).from(Color(1, 1, 1, 0.94)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.finished.connect(shard.queue_free)
+
+func _spawn_perfect_halo(center: Vector2) -> void:
+	var halo_size := 58.0
+	var halo := _make_particle_panel_sized(THEME_PANEL_PARTICLE_RING_GOLD, Vector2(halo_size, halo_size))
+	halo.name = "PerfectHalo"
+	halo.position = center - (halo.size / 2.0)
+	halo.scale = Vector2(0.36, 0.36)
+	halo.modulate = Color(1, 1, 1, 0)
+	add_child(halo)
+
+	var halo_tween := halo.create_tween()
+	halo_tween.set_parallel(true)
+	halo_tween.tween_property(halo, "scale", Vector2(2.1, 2.1), BATTLE_PERFECT_HALO_SECONDS).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	halo_tween.tween_property(halo, "modulate", Color(1, 1, 1, 0), BATTLE_PERFECT_HALO_SECONDS).from(Color(1, 1, 1, 0.88)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	halo_tween.finished.connect(halo.queue_free)
+
+	for index in range(8):
+		var angle := (TAU * float(index)) / 8.0
+		_spawn_perfect_orbit_mote(center, angle, index)
+
+func _spawn_perfect_orbit_mote(center: Vector2, angle: float, index: int) -> void:
+	var mote_size := 6.0 + float(index % 2) * 2.0
+	var mote := _make_particle_panel(THEME_PANEL_PARTICLE_GOLD_STRONG, mote_size)
+	mote.name = "PerfectOrbitMote"
+	mote.position = center - (mote.size / 2.0)
+	mote.modulate = Color(1, 1, 1, 0)
+	add_child(mote)
+
+	var start_radius := 18.0
+	var end_radius := 54.0 + float(index % 3) * 4.0
+	var duration := BATTLE_PERFECT_HALO_SECONDS * (0.72 + float(index % 2) * 0.08)
+	var tween := mote.create_tween()
+	tween.set_parallel(true)
+	tween.tween_method(
+		_position_perfect_orbit_mote.bind(mote, center, angle, start_radius, end_radius),
+		0.0,
+		1.0,
+		duration
+	).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(mote, "scale", Vector2(0.42, 0.42), duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.tween_property(mote, "modulate", Color(1, 1, 1, 0), duration).from(Color(1, 1, 1, 1)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.finished.connect(mote.queue_free)
+
+func _position_perfect_orbit_mote(
+	progress: float,
+	mote: Control,
+	center: Vector2,
+	angle: float,
+	start_radius: float,
+	end_radius: float
+) -> void:
+	if not is_instance_valid(mote):
+		return
+
+	var t: float = clamp(progress, 0.0, 1.0)
+	var current_angle: float = angle + (t * 1.15)
+	var radius: float = start_radius + ((end_radius - start_radius) * t)
+	var point: Vector2 = center + Vector2(cos(current_angle), sin(current_angle)) * radius
+	mote.position = point - (mote.size / 2.0)
+
+func _regen_severity(regen: int) -> int:
+	if regen > 20:
+		return 3
+
+	if regen > 12:
+		return 2
+
+	if regen > 5:
+		return 1
+
+	return 0
+
+func _heal_mote_count(severity: int) -> int:
+	match severity:
+		3:
+			return 12
+		2:
+			return 9
+		1:
+			return 7
+		_:
+			return 5
+
 func _attack_trail_count(severity: int) -> int:
 	match severity:
 		3:
@@ -5372,6 +5663,7 @@ func _play_battle_event_feedback(event: Dictionary) -> void:
 	if event_type == "self-hit" or event_cause == "self-hit":
 		_play_source_fault(source_id)
 		_play_hp_hit(_hp_bar_for_player(source_id), damage)
+		_spawn_fault_ricochet(_battle_source_anchor(source_id), _battle_hp_anchor(source_id), damage)
 		if source_id == _battle_local_player_id():
 			_play_target_fault()
 		var released_damage := int(event.get("releasedDamage", 0))
@@ -5406,7 +5698,7 @@ func _play_battle_event_feedback(event: Dictionary) -> void:
 		_play_perfect_burst(source_id)
 
 	if regen > 0:
-		_play_hp_regen(_hp_bar_for_player(source_id), regen)
+		_play_hp_regen(_hp_bar_for_player(source_id), regen, _battle_source_anchor(source_id))
 
 func _play_attack_launch(source_id: String, damage: int) -> void:
 	var severity := _attack_severity(damage)
@@ -5434,6 +5726,7 @@ func _play_source_fault(source_id: String) -> void:
 		THEME_PANEL_PARTICLE_RING_DANGER,
 		7
 	)
+	_spawn_fault_shards(_battle_source_anchor(source_id), 5)
 
 func _play_perfect_burst(source_id: String) -> void:
 	var source_control = _battle_source_control(source_id)
@@ -5445,6 +5738,7 @@ func _play_perfect_burst(source_id: String) -> void:
 
 	var center := _battle_source_anchor(source_id)
 	_spawn_damage_pop("PERFECT", center + Vector2(-48, -56), COLOR_GOLD)
+	_spawn_perfect_halo(center)
 	_spawn_radial_particles(center, THEME_PANEL_PARTICLE_GOLD, THEME_PANEL_PARTICLE_RING_GOLD, 12)
 
 func _bump_control(control: Control, peak_scale: float, seconds: float) -> void:
@@ -5469,9 +5763,7 @@ func _hp_bar_for_player(player_id: String) -> ProgressBar:
 
 func _battle_hp_anchor(player_id: String) -> Vector2:
 	var bar := _hp_bar_for_player(player_id)
-	if not is_instance_valid(bar):
-		return _target_center()
-	return bar.global_position + (bar.size / 2.0)
+	return _hp_bar_center(bar)
 
 func _battle_source_anchor(player_id: String) -> Vector2:
 	var viewport_size := get_viewport_rect().size
