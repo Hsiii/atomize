@@ -283,6 +283,12 @@ export function MultiplayerGameScreen({
                     {battle.attackEffect ? (
                         <AttackEffectLayer attackEffect={battle.attackEffect} />
                     ) : undefined}
+                    {battle.supportEffects.map((supportEffect) => (
+                        <AttackEffectLayer
+                            attackEffect={supportEffect}
+                            key={supportEffect.id}
+                        />
+                    ))}
                 </section>
 
                 <section className='multiplayer-controls-grid'>
@@ -978,9 +984,12 @@ function AttackEffectLayer({
                     style={
                         {
                             '--particle-size': `${particle.size}px`,
+                            '--particle-width': `${particle.width ?? particle.size}px`,
+                            '--particle-height': `${particle.height ?? particle.size}px`,
                             '--particle-x': `${particle.x}px`,
                             '--particle-y': `${particle.y}px`,
                             '--particle-opacity': particle.opacity,
+                            '--particle-rotation': `${particle.rotation ?? 0}deg`,
                         } as CSSProperties
                     }
                 />

@@ -412,11 +412,12 @@
 }
 
 .multiplayer-attack-particle {
+    --particle-rotation: 0deg;
     position: absolute;
     left: 0;
     top: 0;
-    width: var(--particle-size);
-    height: var(--particle-size);
+    width: var(--particle-width, var(--particle-size));
+    height: var(--particle-height, var(--particle-size));
     opacity: var(--particle-opacity);
 }
 
@@ -463,6 +464,55 @@
 .multiplayer-attack-particle-ring.multiplayer-attack-particle-enemy {
     background: transparent;
     border: 2px solid var(--color-game-opponent);
+}
+
+.multiplayer-attack-particle-heal,
+.multiplayer-attack-particle-fault-glow,
+.multiplayer-attack-particle-perfect-orbit {
+    border-radius: 50%;
+    transform: translate(
+            calc(var(--particle-x) - 50%),
+            calc(var(--particle-y) - 50%)
+        )
+        rotate(var(--particle-rotation));
+}
+
+.multiplayer-attack-particle-heal {
+    background: var(--color-gold);
+    filter: drop-shadow(0 0 var(--space-2) var(--color-gold-soft));
+}
+
+.multiplayer-attack-particle-heal-ring,
+.multiplayer-attack-particle-perfect-halo {
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: inset 0 0 0 calc(var(--space-2) / 4) var(--color-gold);
+    transform: translate(
+            calc(var(--particle-x) - 50%),
+            calc(var(--particle-y) - 50%)
+        )
+        rotate(var(--particle-rotation));
+}
+
+.multiplayer-attack-particle-perfect-orbit {
+    background: var(--color-gold-strong);
+}
+
+.multiplayer-attack-particle-fault-shard {
+    border-radius: var(--radius-pill);
+    background: var(--color-danger);
+    box-shadow: inset 0 0 0 calc(var(--space-2) / 4)
+        var(--color-border-inverse-soft);
+    transform: translate(
+            calc(var(--particle-x) - 50%),
+            calc(var(--particle-y) - 50%)
+        )
+        rotate(var(--particle-rotation));
+}
+
+.multiplayer-attack-particle-fault-glow {
+    background: var(--color-danger);
+    filter: drop-shadow(0 0 var(--space-2) var(--color-danger));
 }
 
 .multiplayer-controls-grid {

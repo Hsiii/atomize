@@ -14,9 +14,19 @@ import {
     SELF_FAULT_DURATION_MS,
 } from '../core/timing';
 
+const HEAL_STREAM_DURATION_MS = 660;
+const HEAL_STREAM_STEP_MS = 55;
+const HEAL_PULSE_DURATION_MS = 520;
+const FAULT_RICOCHET_DURATION_MS = 340;
+const FAULT_SHARD_DURATION_MS = 280;
+const PERFECT_HALO_DURATION_MS = 780;
+
+type BattleSide = 'enemy' | 'self';
+type BattlePoint = { x: number; y: number };
+
 export type DamagePop = {
     id: string;
-    side: 'enemy' | 'self';
+    side: BattleSide;
     value: number;
     kind: 'damage' | 'regen';
 };
@@ -34,12 +44,24 @@ export type SideHpImpacts = {
 
 type AttackParticle = {
     id: number;
-    side: 'enemy' | 'self';
+    side: BattleSide;
     x: number;
     y: number;
     size: number;
+    width?: number;
+    height?: number;
     opacity: number;
-    shape: 'ball' | 'circle' | 'ring';
+    rotation?: number;
+    shape:
+        | 'ball'
+        | 'circle'
+        | 'ring'
+        | 'heal'
+        | 'heal-ring'
+        | 'fault-shard'
+        | 'fault-glow'
+        | 'perfect-halo'
+        | 'perfect-orbit';
 };
 
 export type AttackEffectState = {
@@ -54,14 +76,14 @@ type PendingAttack = {
     perfectSolve: boolean;
     sourceHp: number;
     sourceRegen: number;
-    sourceSide: 'enemy' | 'self';
+    sourceSide: BattleSide;
     targetHp: number;
-    targetSide: 'enemy' | 'self';
+    targetSide: BattleSide;
 };
 
 export type PerfectBurst = {
     id: number;
-    side: 'enemy' | 'self';
+    side: BattleSide;
 };
 
 function getHpLossDuration(previousHp: number, nextHp: number): number {
@@ -104,6 +126,105 @@ function quadraticBezier(
     );
 }
 
+function clamp01(value: number): number {
+    return Math.max(0, Math.min(1, value));
+}
+
+function easeOutQuad(progress: number): number {
+    const inverse = 1 - progress;
+    return 1 - inverse * inverse;
+}
+
+function getBattleSeverity(value: number): number {
+    if (value > 30) {
+        return 3;
+    }
+
+    if (value > 15) {
+        return 2;
+    }
+
+    if (value > 5) {
+        return 1;
+    }
+
+    return 0;
+}
+
+function getRegenSeverity(value: number): number {
+    if (value > 20) {
+        return 3;
+    }
+
+    if (value > 12) {
+        return 2;
+    }
+
+    if (value > 5) {
+        return 1;
+    }
+
+    return 0;
+}
+
+function getElementCenter(
+    element: HTMLElement,
+    overlayRect: DOMRect
+): BattlePoint {
+    const rect = element.getBoundingClientRect();
+
+    return {
+        x: rect.left + rect.width / 2 - overlayRect.left,
+        y: rect.top + rect.height / 2 - overlayRect.top,
+    };
+}
+
+function buildFaultBurstParticles(
+    centerPoint: BattlePoint,
+    elapsedMs: number,
+    count: number,
+    idBase: number,
+    side: BattleSide
+): readonly AttackParticle[] {
+    if (elapsedMs < 0 || elapsedMs > FAULT_SHARD_DURATION_MS) {
+        return [];
+    }
+
+    const burstProgress = clamp01(elapsedMs / FAULT_SHARD_DURATION_MS);
+    const burstEase = easeOutQuad(burstProgress);
+    const particles: AttackParticle[] = [
+        {
+            id: idBase,
+            side,
+            x: centerPoint.x,
+            y: centerPoint.y,
+            size: 34 * (0.28 + burstEase * 1.22),
+            opacity: (1 - burstProgress) * 0.68,
+            shape: 'fault-glow',
+        },
+    ];
+
+    for (let index = 0; index < count; index++) {
+        const angle = (Math.PI * 2 * index) / count + 0.18;
+        const distance = (18 + (index % 3) * 7) * burstEase;
+
+        particles.push({
+            id: idBase + 1 + index,
+            side,
+            x: centerPoint.x + Math.cos(angle) * distance,
+            y: centerPoint.y + Math.sin(angle) * distance,
+            size: 10 + (index % 2) * 4,
+            width: 10 + (index % 2) * 4,
+            height: 4,
+            opacity: (1 - burstProgress) * 0.94,
+            rotation: (angle * 180) / Math.PI,
+            shape: 'fault-shard',
+        });
+    }
+
+    return particles;
+}
+
 export function useBattleAnimations({
     currentPlayer,
     opponentPlayer,
@@ -130,6 +251,7 @@ export function useBattleAnimations({
     selfBlobRef: React.RefObject<HTMLDivElement | null>;
     selfFaultToken: string | undefined;
     selfHealthRef: React.RefObject<HTMLDivElement | null>;
+    supportEffects: AttackEffectState[];
 } {
     const isMatchFinished = snapshot?.status === 'finished';
     const currentStageIndex = currentPlayer?.stageIndex;
@@ -139,6 +261,9 @@ export function useBattleAnimations({
     const [isOpponentRevealActive, setIsOpponentRevealActive] = useState(false);
     const [damagePops, setDamagePops] = useState<DamagePop[]>([]);
     const [attackEffect, setAttackEffect] = useState<AttackEffectState>();
+    const [supportEffects, setSupportEffects] = useState<AttackEffectState[]>(
+        []
+    );
     const [queuedAttacks, setQueuedAttacks] = useState<PendingAttack[]>([]);
     const [activeAttackId, setActiveAttackId] = useState<number>();
     const [displayedSelfHp, setDisplayedSelfHp] = useState(
@@ -161,6 +286,7 @@ export function useBattleAnimations({
     const previousStageIndexRef = useRef<number | undefined>(undefined);
     const previousOpponentStageIndexRef = useRef<number | undefined>(undefined);
     const animationFrameRef = useRef<number | undefined>(undefined);
+    const supportAnimationFramesRef = useRef<Map<number, number>>(new Map());
     const timeoutIdsRef = useRef<number[]>([]);
     const resultDialogTimerRef = useRef<number | undefined>(undefined);
     const overlayRef = useRef<HTMLDivElement | null>(null);
@@ -216,7 +342,105 @@ export function useBattleAnimations({
         return timerId;
     }
 
-    function setDisplayedHp(side: 'enemy' | 'self', nextHp: number) {
+    function clearSupportEffects() {
+        for (const frameId of supportAnimationFramesRef.current.values()) {
+            cancelAnimationFrame(frameId);
+        }
+
+        supportAnimationFramesRef.current.clear();
+        setSupportEffects([]);
+    }
+
+    function getBattlePoint(
+        side: BattleSide,
+        elementKind: 'blob' | 'health'
+    ): BattlePoint | undefined {
+        const overlayElement = overlayRef.current;
+        let sourceElement: HTMLDivElement | null;
+
+        if (elementKind === 'blob') {
+            sourceElement =
+                side === 'self' ? selfBlobRef.current : enemyBlobRef.current;
+        } else {
+            sourceElement =
+                side === 'self'
+                    ? selfHealthRef.current
+                    : enemyHealthRef.current;
+        }
+
+        if (!overlayElement || !sourceElement) {
+            return undefined;
+        }
+
+        return getElementCenter(
+            sourceElement,
+            overlayElement.getBoundingClientRect()
+        );
+    }
+
+    function setSupportEffect(
+        id: number,
+        particles: readonly AttackParticle[]
+    ) {
+        setSupportEffects((currentEffects: readonly AttackEffectState[]) => {
+            const nextEffects = currentEffects.filter(
+                (currentEffect) => currentEffect.id !== id
+            );
+
+            if (particles.length === 0) {
+                return nextEffects;
+            }
+
+            return [...nextEffects, { id, particles: [...particles] }];
+        });
+    }
+
+    function removeSupportEffect(id: number) {
+        supportAnimationFramesRef.current.delete(id);
+        setSupportEffects((currentEffects: readonly AttackEffectState[]) =>
+            currentEffects.filter((currentEffect) => currentEffect.id !== id)
+        );
+    }
+
+    function startSupportParticleEffect(
+        id: number,
+        durationMs: number,
+        buildParticles: (
+            elapsedMs: number,
+            progress: number
+        ) => AttackParticle[]
+    ): boolean {
+        const previousFrameId = supportAnimationFramesRef.current.get(id);
+        if (previousFrameId !== undefined) {
+            cancelAnimationFrame(previousFrameId);
+        }
+
+        const animationStart = performance.now();
+
+        const animate = (timestamp: number) => {
+            const elapsedMs = timestamp - animationStart;
+            const progress = clamp01(elapsedMs / durationMs);
+            setSupportEffect(id, buildParticles(elapsedMs, progress));
+
+            if (progress < 1) {
+                supportAnimationFramesRef.current.set(
+                    id,
+                    requestAnimationFrame(animate)
+                );
+                return;
+            }
+
+            removeSupportEffect(id);
+        };
+
+        supportAnimationFramesRef.current.set(
+            id,
+            requestAnimationFrame(animate)
+        );
+        return true;
+    }
+
+    function setDisplayedHp(side: BattleSide, nextHp: number) {
         if (side === 'self') {
             displayedSelfHpRef.current = nextHp;
             setDisplayedSelfHp(nextHp);
@@ -227,7 +451,7 @@ export function useBattleAnimations({
         setDisplayedEnemyHp(nextHp);
     }
 
-    function getDisplayedHp(side: 'enemy' | 'self'): number {
+    function getDisplayedHp(side: BattleSide): number {
         return side === 'self'
             ? displayedSelfHpRef.current
             : displayedEnemyHpRef.current;
@@ -266,7 +490,7 @@ export function useBattleAnimations({
     }
 
     function resolveHpLoss(
-        side: 'enemy' | 'self',
+        side: BattleSide,
         nextHp: number,
         damage: number,
         finishState?: {
@@ -343,9 +567,10 @@ export function useBattleAnimations({
     }
 
     function resolveHpGain(
-        side: 'enemy' | 'self',
+        side: BattleSide,
         nextHp: number,
-        regen: number
+        regen: number,
+        eventId: number
     ): number {
         const previousHp = getDisplayedHp(side);
         const appliedRegen = Math.max(0, nextHp - previousHp);
@@ -396,18 +621,20 @@ export function useBattleAnimations({
 
         if (regen > 0) {
             showDamagePop(side, regen, 'regen');
+            startHealEffect(side, eventId, regen);
         }
 
         return durationMs;
     }
 
     function triggerPerfectSolve(
-        side: 'enemy' | 'self',
+        side: BattleSide,
         eventId: number,
         nextHp: number,
         regen: number
     ): number {
         setPerfectBurst({ id: eventId, side });
+        startPerfectHaloEffect(side, eventId);
 
         scheduleTimeout(() => {
             setPerfectBurst((currentBurst) =>
@@ -428,14 +655,14 @@ export function useBattleAnimations({
         );
 
         if (regen > 0) {
-            resolveHpGain(side, nextHp, regen);
+            resolveHpGain(side, nextHp, regen, eventId);
         }
 
         return totalDurationMs;
     }
 
     function showDamagePop(
-        side: 'enemy' | 'self',
+        side: BattleSide,
         value: number,
         kind: 'damage' | 'regen'
     ) {
@@ -471,9 +698,294 @@ export function useBattleAnimations({
         }, SELF_FAULT_DURATION_MS);
     }
 
+    function startHealEffect(
+        side: BattleSide,
+        eventId: number,
+        regen: number
+    ): boolean {
+        const sourcePoint = getBattlePoint(side, 'blob');
+        const targetPoint = getBattlePoint(side, 'health');
+
+        if (!sourcePoint || !targetPoint) {
+            return false;
+        }
+
+        const severity = getRegenSeverity(regen);
+        const moteCount = [5, 7, 9, 12][severity];
+        const dx = targetPoint.x - sourcePoint.x;
+        const dy = targetPoint.y - sourcePoint.y;
+        const pathLength = Math.hypot(dx, dy) || 1;
+        const directionX = dx / pathLength;
+        const directionY = dy / pathLength;
+        const perpX = -directionY;
+        const perpY = directionX;
+        const controlBase = {
+            x: (sourcePoint.x + targetPoint.x) / 2,
+            y: (sourcePoint.y + targetPoint.y) / 2 - 48 - severity * 16,
+        };
+        const durationMs =
+            HEAL_STREAM_DURATION_MS + (moteCount - 1) * HEAL_STREAM_STEP_MS;
+
+        return startSupportParticleEffect(
+            eventId * 100 + 11,
+            durationMs,
+            (elapsedMs) => {
+                const particles: AttackParticle[] = [];
+                const pulseProgress = clamp01(
+                    elapsedMs / HEAL_PULSE_DURATION_MS
+                );
+
+                if (pulseProgress < 1) {
+                    const pulseEase = easeOutQuad(pulseProgress);
+                    const pulseBaseSize = 36 + severity * 12;
+
+                    particles.push(
+                        {
+                            id: 1,
+                            side,
+                            x: targetPoint.x,
+                            y: targetPoint.y,
+                            size: pulseBaseSize * (0.32 + pulseEase * 1.14),
+                            opacity: (1 - pulseProgress) * 0.74,
+                            shape: 'heal',
+                        },
+                        {
+                            id: 2,
+                            side,
+                            x: targetPoint.x,
+                            y: targetPoint.y,
+                            size: pulseBaseSize * (0.32 + pulseEase * 1.28),
+                            opacity: (1 - pulseProgress) * 0.86,
+                            shape: 'heal-ring',
+                        }
+                    );
+                }
+
+                for (let index = 0; index < moteCount; index++) {
+                    const delayMs = index * HEAL_STREAM_STEP_MS;
+                    const moteElapsedMs = elapsedMs - delayMs;
+                    const moteDurationMs = Math.max(
+                        220,
+                        HEAL_STREAM_DURATION_MS - delayMs * 0.25
+                    );
+                    const moteProgress = clamp01(
+                        moteElapsedMs / moteDurationMs
+                    );
+
+                    if (moteElapsedMs <= 0 || moteProgress >= 1) {
+                        continue;
+                    }
+
+                    const laneSide = index % 2 === 0 ? -1 : 1;
+                    const lane = (6 + (index % 4) * 3) * laneSide;
+                    const startPoint = {
+                        x:
+                            sourcePoint.x +
+                            perpX * lane * 0.2 -
+                            directionX * (index % 3) * 4,
+                        y:
+                            sourcePoint.y +
+                            perpY * lane * 0.2 -
+                            directionY * (index % 3) * 4,
+                    };
+                    const controlPoint = {
+                        x: controlBase.x + perpX * lane * 1.2,
+                        y: controlBase.y + perpY * lane * 1.2 - (index % 3) * 8,
+                    };
+                    const endPoint = {
+                        x: targetPoint.x + perpX * lane * 0.18,
+                        y:
+                            targetPoint.y +
+                            perpY * lane * 0.18 -
+                            (index % 2) * 4,
+                    };
+                    const easedProgress = easeOutQuad(moteProgress);
+
+                    particles.push({
+                        id: 10 + index,
+                        side,
+                        x: quadraticBezier(
+                            startPoint.x,
+                            controlPoint.x,
+                            endPoint.x,
+                            easedProgress
+                        ),
+                        y: quadraticBezier(
+                            startPoint.y,
+                            controlPoint.y,
+                            endPoint.y,
+                            easedProgress
+                        ),
+                        size: 6 + (index % 3) * 2 + severity,
+                        opacity:
+                            Math.min(1, moteProgress * 5) *
+                            (1 - moteProgress * 0.9),
+                        shape: 'heal',
+                    });
+                }
+
+                return particles;
+            }
+        );
+    }
+
+    function startPerfectHaloEffect(
+        side: BattleSide,
+        eventId: number
+    ): boolean {
+        const centerPoint = getBattlePoint(side, 'blob');
+
+        if (!centerPoint) {
+            return false;
+        }
+
+        return startSupportParticleEffect(
+            eventId * 100 + 21,
+            PERFECT_HALO_DURATION_MS,
+            (_elapsedMs, progress) => {
+                const particles: AttackParticle[] = [];
+                const haloEase = easeOutQuad(progress);
+
+                particles.push({
+                    id: 1,
+                    side,
+                    x: centerPoint.x,
+                    y: centerPoint.y,
+                    size: 58 * (0.36 + haloEase * 1.74),
+                    opacity: (1 - progress) * 0.88,
+                    shape: 'perfect-halo',
+                });
+
+                for (let index = 0; index < 8; index++) {
+                    const moteDurationMs =
+                        PERFECT_HALO_DURATION_MS * (0.72 + (index % 2) * 0.08);
+                    const moteProgress = clamp01(
+                        (progress * PERFECT_HALO_DURATION_MS) / moteDurationMs
+                    );
+
+                    if (moteProgress >= 1) {
+                        continue;
+                    }
+
+                    const angle =
+                        (Math.PI * 2 * index) / 8 + moteProgress * 1.15;
+                    const radius =
+                        18 + (54 + (index % 3) * 4 - 18) * moteProgress;
+
+                    particles.push({
+                        id: 10 + index,
+                        side,
+                        x: centerPoint.x + Math.cos(angle) * radius,
+                        y: centerPoint.y + Math.sin(angle) * radius,
+                        size: (6 + (index % 2) * 2) * (1 - moteProgress * 0.58),
+                        opacity: 1 - moteProgress,
+                        shape: 'perfect-orbit',
+                    });
+                }
+
+                return particles;
+            }
+        );
+    }
+
+    function startFaultEffect(
+        side: BattleSide,
+        eventId: number,
+        damage: number
+    ): boolean {
+        const sourcePoint = getBattlePoint(side, 'blob');
+        const targetPoint = getBattlePoint(side, 'health');
+
+        if (!sourcePoint || !targetPoint) {
+            return false;
+        }
+
+        const severity = getBattleSeverity(damage);
+        const horizontalDirection = targetPoint.x >= sourcePoint.x ? 1 : -1;
+        const controlPoint = {
+            x: (sourcePoint.x + targetPoint.x) / 2 + 28 * horizontalDirection,
+            y: (sourcePoint.y + targetPoint.y) / 2 - 40 - severity * 8,
+        };
+        const totalDurationMs =
+            FAULT_RICOCHET_DURATION_MS + FAULT_SHARD_DURATION_MS;
+
+        return startSupportParticleEffect(
+            eventId * 100 + 31,
+            totalDurationMs,
+            (elapsedMs) => {
+                const particles: AttackParticle[] = [
+                    ...buildFaultBurstParticles(
+                        sourcePoint,
+                        elapsedMs,
+                        5,
+                        100,
+                        side
+                    ),
+                ];
+
+                if (elapsedMs <= FAULT_RICOCHET_DURATION_MS) {
+                    const flightProgress = clamp01(
+                        elapsedMs / FAULT_RICOCHET_DURATION_MS
+                    );
+                    const accelerated = flightProgress * flightProgress;
+                    const x = quadraticBezier(
+                        sourcePoint.x,
+                        controlPoint.x,
+                        targetPoint.x,
+                        accelerated
+                    );
+                    const y = quadraticBezier(
+                        sourcePoint.y,
+                        controlPoint.y,
+                        targetPoint.y,
+                        accelerated
+                    );
+                    const tangentX =
+                        2 *
+                            (1 - accelerated) *
+                            (controlPoint.x - sourcePoint.x) +
+                        2 * accelerated * (targetPoint.x - controlPoint.x);
+                    const tangentY =
+                        2 *
+                            (1 - accelerated) *
+                            (controlPoint.y - sourcePoint.y) +
+                        2 * accelerated * (targetPoint.y - controlPoint.y);
+
+                    particles.push({
+                        id: 1,
+                        side,
+                        x,
+                        y,
+                        size: 20 + severity * 4,
+                        width: 20 + severity * 4,
+                        height: 6 + severity,
+                        opacity:
+                            Math.min(1, flightProgress * 5) *
+                            (1 - flightProgress * 0.95),
+                        rotation:
+                            (Math.atan2(tangentY, tangentX) * 180) / Math.PI,
+                        shape: 'fault-shard',
+                    });
+                }
+
+                particles.push(
+                    ...buildFaultBurstParticles(
+                        targetPoint,
+                        elapsedMs - FAULT_RICOCHET_DURATION_MS * 0.8,
+                        6 + severity * 2,
+                        300,
+                        side
+                    )
+                );
+
+                return particles;
+            }
+        );
+    }
+
     function startAttackEffect(
-        sourceSide: 'enemy' | 'self',
-        targetSide: 'enemy' | 'self',
+        sourceSide: BattleSide,
+        targetSide: BattleSide,
         id: number,
         damage: number,
         onComplete?: () => void
@@ -502,15 +1014,7 @@ export function useBattleAnimations({
             y: targetRect.top + targetRect.height / 2 - overlayRect.top,
         };
         const horizontalDirection = targetSide === 'self' ? 1 : -1;
-        let severity = 0;
-
-        if (damage > 30) {
-            severity = 3;
-        } else if (damage > 15) {
-            severity = 2;
-        } else if (damage > 5) {
-            severity = 1;
-        }
+        const severity = getBattleSeverity(damage);
 
         const trailCount = [3, 5, 8, 11][severity];
         const leadSize = [14, 18, 24, 30][severity];
@@ -750,6 +1254,11 @@ export function useBattleAnimations({
                 cancelAnimationFrame(animationFrameRef.current);
             }
 
+            for (const frameId of supportAnimationFramesRef.current.values()) {
+                cancelAnimationFrame(frameId);
+            }
+            supportAnimationFramesRef.current.clear();
+
             for (const timerId of timeoutIdsRef.current) {
                 globalThis.clearTimeout(timerId);
             }
@@ -827,6 +1336,7 @@ export function useBattleAnimations({
             setHpImpacts({});
             setPerfectBurst(undefined);
             setSelfFaultToken(undefined);
+            clearSupportEffects();
             perfectSolveEndTimeRef.current.clear();
             return;
         }
@@ -899,6 +1409,7 @@ export function useBattleAnimations({
                 triggerSelfFault();
             }
 
+            startFaultEffect(side, lastEvent.id, lastEvent.damage);
             resolveHpLoss(side, lastEvent.sourceHp, lastEvent.damage);
 
             if (lastEvent.releasedDamage > 0) {
@@ -1036,6 +1547,7 @@ export function useBattleAnimations({
 
     const isAnimating =
         attackEffect !== undefined ||
+        supportEffects.length > 0 ||
         damagePops.length > 0 ||
         queuedAttacks.length > 0 ||
         activeAttackId !== undefined ||
@@ -1049,6 +1561,7 @@ export function useBattleAnimations({
     return {
         damagePops,
         attackEffect,
+        supportEffects,
         displayedSelfHp,
         displayedEnemyHp,
         hpImpacts,
