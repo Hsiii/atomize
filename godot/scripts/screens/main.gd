@@ -4024,7 +4024,7 @@ func _add_button_theme(
 	app_theme.set_font_size("font_size", variation, font_size)
 	app_theme.set_stylebox("normal", variation, _make_button_style(normal_color, content_margin, radius, border_color, border_width))
 	app_theme.set_stylebox("hover", variation, _make_button_style(resolved_hover_color, content_margin, radius, border_color, border_width))
-	app_theme.set_stylebox("focus", variation, _make_button_style(normal_color, content_margin, radius, border_color, border_width))
+	app_theme.set_stylebox("focus", variation, _make_button_style(normal_color, content_margin, radius, COLOR_GOLD, 3))
 	app_theme.set_stylebox("pressed", variation, _make_button_style(pressed_color, content_margin, radius, border_color, border_width))
 	app_theme.set_stylebox("hover_pressed", variation, _make_button_style(pressed_color, content_margin, radius, border_color, border_width))
 	var disabled_color := Color(normal_color.r, normal_color.g, normal_color.b, normal_color.a * 0.38)
@@ -4069,13 +4069,13 @@ func _add_progress_theme(app_theme: Theme, variation: String, fill_color: Color)
 
 func _make_ui_font(weight: int) -> SystemFont:
 	var font := SystemFont.new()
-	font.font_names = PackedStringArray(["Menlo", "Courier New", "Monaco"])
+	font.font_names = PackedStringArray(["Avenir Next", "Helvetica Neue", "Arial"])
 	font.font_weight = weight
 	return font
 
 func _apply_button_theme(button: Button, variation: String) -> void:
 	button.theme_type_variation = variation
-	button.focus_mode = Control.FOCUS_NONE
+	button.focus_mode = Control.FOCUS_ALL
 
 func _apply_panel_theme(panel: Control, variation: String) -> void:
 	panel.theme_type_variation = variation
@@ -4532,7 +4532,7 @@ func _make_absolute_label(text: String, font_size: int, color: Color, weight: in
 
 func _make_label_settings(font_size: int, color: Color, weight: int) -> LabelSettings:
 	var font := SystemFont.new()
-	font.font_names = PackedStringArray(["Menlo", "Courier New", "Monaco"])
+	font.font_names = PackedStringArray(["Avenir Next", "Helvetica Neue", "Arial"])
 	font.font_weight = weight
 
 	var settings := LabelSettings.new()
@@ -4565,7 +4565,7 @@ func _set_label_color(label: Label, color: Color) -> void:
 func _add_target_atom_art(parent: Control, icon_size: int) -> void:
 	var atom_art := TextureRect.new()
 	atom_art.texture = _get_icon_texture("atom", Color(1.0, 1.0, 1.0, 0.26), icon_size)
-	atom_art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	atom_art.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	atom_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	atom_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	atom_art.size = Vector2(icon_size, icon_size)
@@ -5997,12 +5997,12 @@ func _set_or_add_texture_icon(parent: Control, kind: String, icon_size: int, col
 		button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		button.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
 		button.expand_icon = false
-		button.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		button.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 		return
 
 	var texture_rect := TextureRect.new()
 	texture_rect.texture = texture
-	texture_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	texture_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	texture_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -6037,7 +6037,7 @@ func _load_icon_image(kind: String, size: int) -> Image:
 		return image
 
 	if image.get_width() != size or image.get_height() != size:
-		image.resize(size, size, Image.INTERPOLATE_NEAREST)
+		image.resize(size, size, Image.INTERPOLATE_LANCZOS)
 	return image
 
 func _tint_icon_image(image: Image, color: Color) -> void:
@@ -6055,12 +6055,9 @@ func _make_button_style(
 	border_color: Color = COLOR_BORDER_CONTRAST,
 	border_width: int = PIXEL_BORDER
 ) -> StyleBox:
-	if radius == RADIUS_PILL:
-		return _make_pixel_circle_style(color, border_color, border_width, content_margin)
-
 	var style := StyleBoxFlat.new()
 	style.bg_color = color
-	style.anti_aliasing = false
+	style.anti_aliasing = true
 	style.corner_radius_top_left = radius
 	style.corner_radius_top_right = radius
 	style.corner_radius_bottom_right = radius
@@ -6079,7 +6076,7 @@ func _make_button_style(
 func _make_bar_style(color: Color, radius: int) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = color
-	style.anti_aliasing = false
+	style.anti_aliasing = true
 	style.corner_radius_top_left = radius
 	style.corner_radius_top_right = radius
 	style.corner_radius_bottom_right = radius
@@ -6089,7 +6086,7 @@ func _make_bar_style(color: Color, radius: int) -> StyleBoxFlat:
 func _make_dialog_panel_style(border_color: Color = COLOR_PRIMARY) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = COLOR_SURFACE
-	style.anti_aliasing = false
+	style.anti_aliasing = true
 	style.border_color = border_color
 	style.border_width_left = PIXEL_BORDER
 	style.border_width_top = PIXEL_BORDER
@@ -6119,7 +6116,7 @@ func _make_capsule_style(
 ) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = color
-	style.anti_aliasing = false
+	style.anti_aliasing = true
 	style.corner_radius_top_left = RADIUS_PILL
 	style.corner_radius_top_right = RADIUS_PILL
 	style.corner_radius_bottom_right = RADIUS_PILL
@@ -6138,12 +6135,9 @@ func _make_pixel_box_style(
 	radius: int = RADIUS_BUTTON,
 	with_shadow: bool = false
 ) -> StyleBox:
-	if radius == RADIUS_PILL:
-		return _make_pixel_circle_style(color, border_color, border_width)
-
 	var style := StyleBoxFlat.new()
 	style.bg_color = color
-	style.anti_aliasing = false
+	style.anti_aliasing = true
 	style.corner_radius_top_left = radius
 	style.corner_radius_top_right = radius
 	style.corner_radius_bottom_right = radius
@@ -6167,18 +6161,23 @@ func _make_pixel_circle_style(
 	border_color: Color,
 	border_width: int,
 	content_margin: int = 0
-) -> StyleBoxTexture:
-	var style := StyleBoxTexture.new()
-	style.texture = _get_pixel_circle_texture(color, border_color, border_width)
-	style.texture_margin_left = 8
-	style.texture_margin_top = 8
-	style.texture_margin_right = 8
-	style.texture_margin_bottom = 8
+) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.anti_aliasing = true
+	style.corner_radius_top_left = RADIUS_PILL
+	style.corner_radius_top_right = RADIUS_PILL
+	style.corner_radius_bottom_right = RADIUS_PILL
+	style.corner_radius_bottom_left = RADIUS_PILL
+	style.border_color = border_color
+	style.border_width_left = border_width
+	style.border_width_top = border_width
+	style.border_width_right = border_width
+	style.border_width_bottom = border_width
 	style.content_margin_left = content_margin
 	style.content_margin_right = content_margin
 	style.content_margin_top = max(0, content_margin / 2)
 	style.content_margin_bottom = max(0, content_margin / 2)
-	style.draw_center = true
 	return style
 
 func _get_pixel_circle_texture(color: Color, border_color: Color, border_width: int) -> Texture2D:
@@ -6211,7 +6210,7 @@ func _get_pixel_circle_texture(color: Color, border_color: Color, border_width: 
 func _make_panel_style(color: Color) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = color
-	style.anti_aliasing = false
+	style.anti_aliasing = true
 	style.corner_radius_top_left = RADIUS_PANEL
 	style.corner_radius_top_right = RADIUS_PANEL
 	style.corner_radius_bottom_right = RADIUS_PANEL
