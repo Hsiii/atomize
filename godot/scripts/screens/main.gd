@@ -162,8 +162,6 @@ const THEME_PANEL_ATTACK_BALL_PRIMARY := "AtomPanelAttackBallPrimary"
 const THEME_PANEL_ATTACK_BALL_SECONDARY := "AtomPanelAttackBallSecondary"
 const THEME_PANEL_ATTACK_GLOW_PRIMARY := "AtomPanelAttackGlowPrimary"
 const THEME_PANEL_ATTACK_GLOW_SECONDARY := "AtomPanelAttackGlowSecondary"
-const THEME_PANEL_ATTACK_STREAK_PRIMARY := "AtomPanelAttackStreakPrimary"
-const THEME_PANEL_ATTACK_STREAK_SECONDARY := "AtomPanelAttackStreakSecondary"
 const THEME_PROGRESS_PRIMARY := "AtomProgressPrimary"
 const THEME_PROGRESS_SECONDARY := "AtomProgressSecondary"
 const THEME_PROGRESS_DANGER := "AtomProgressDanger"
@@ -4035,8 +4033,6 @@ func _make_app_theme() -> Theme:
 	_add_panel_theme(app_theme, THEME_PANEL_ATTACK_BALL_SECONDARY, "Panel", _make_pixel_box_style(COLOR_SECONDARY, COLOR_BORDER_INVERSE_SOFT, PIXEL_BORDER, RADIUS_PILL))
 	_add_panel_theme(app_theme, THEME_PANEL_ATTACK_GLOW_PRIMARY, "Panel", _make_capsule_style(_alpha_color(COLOR_PRIMARY_STRONG, 0.24)))
 	_add_panel_theme(app_theme, THEME_PANEL_ATTACK_GLOW_SECONDARY, "Panel", _make_capsule_style(_alpha_color(COLOR_SECONDARY, 0.24)))
-	_add_panel_theme(app_theme, THEME_PANEL_ATTACK_STREAK_PRIMARY, "Panel", _make_capsule_style(_alpha_color(COLOR_PRIMARY_STRONG, 0.68)))
-	_add_panel_theme(app_theme, THEME_PANEL_ATTACK_STREAK_SECONDARY, "Panel", _make_capsule_style(_alpha_color(COLOR_SECONDARY, 0.68)))
 	_add_progress_theme(app_theme, THEME_PROGRESS_PRIMARY, COLOR_PRIMARY_STRONG)
 	_add_progress_theme(app_theme, THEME_PROGRESS_SECONDARY, COLOR_SECONDARY)
 	_add_progress_theme(app_theme, THEME_PROGRESS_DANGER, COLOR_DANGER)
@@ -5006,12 +5002,14 @@ func _spawn_attack_particles(
 	var direction := delta.normalized() if delta.length() > 0.0 else Vector2.RIGHT
 	var tangent := Vector2(-direction.y, direction.x)
 	var horizontal_direction := 1.0 if target.x >= source.x else -1.0
-	var control := (source + target) / 2.0 + Vector2(42.0 * horizontal_direction * spread_scale, -88.0 * spread_scale)
+	var control := Vector2(
+		(source.x + target.x) / 2.0 + 42.0 * horizontal_direction * spread_scale,
+		min(source.y, target.y) - 88.0 * spread_scale
+	)
 	var glow_theme := _attack_glow_theme_for_ball(ball_theme)
-	var streak_theme := _attack_streak_theme_for_ball(ball_theme)
 
 	_spawn_attack_launch_flare(source, direction, fill_theme, ring_theme, severity)
-	_spawn_attack_bullet(source, control, target, ball_theme, glow_theme, streak_theme, flight_duration, lead_size, severity)
+	_spawn_attack_bullet(source, control, target, ball_theme, flight_duration, lead_size)
 
 	for index in range(trail_count):
 		var delay := duration * (float(index) + 1.0) * BATTLE_ATTACK_TRAIL_STEP
@@ -5028,8 +5026,7 @@ func _spawn_attack_particles(
 			size,
 			tangent,
 			wobble,
-			float(index) * 1.8,
-			false
+			float(index) * 1.8
 		)
 
 	_spawn_attack_impact_flash(target, fill_theme, ring_theme, glow_theme, severity, impact_delay, impact_duration)
@@ -5066,75 +5063,26 @@ func _spawn_attack_bullet(
 	control: Vector2,
 	target: Vector2,
 	ball_theme: String,
-	glow_theme: String,
-	streak_theme: String,
 	duration: float,
-	particle_size: float,
-	severity: int
+	particle_size: float
 ) -> void:
-	var bullet := _make_attack_bullet(ball_theme, glow_theme, streak_theme, particle_size, severity)
+	var bullet := _make_attack_bullet(ball_theme, particle_size)
 	bullet.position = source - (bullet.size / 2.0)
 	bullet.modulate = Color(1, 1, 1, 0)
 	add_child(bullet)
 
-	var motion_tween := bullet.create_tween()
-	motion_tween.set_parallel(true)
+	var motion_tween := bullet.create_tween().bind_node(bullet)
 	motion_tween.tween_method(
 		_position_attack_bullet.bind(bullet, source, control, target),
 		0.0,
 		1.0,
 		duration
-	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	motion_tween.tween_property(
-		bullet,
-		"scale",
-		Vector2(1.08 + float(severity) * 0.04, 0.92),
-		duration * 0.55
-	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	).set_trans(Tween.TRANS_LINEAR)
 	motion_tween.finished.connect(bullet.queue_free)
 
-	var fade_in_duration: float = min(duration * 0.14, 0.08)
-	var fade_out_duration: float = min(duration * 0.20, 0.14)
-	var fade_tween := bullet.create_tween()
-	fade_tween.tween_property(bullet, "modulate", Color(1, 1, 1, 1), fade_in_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	fade_tween.tween_interval(max(0.01, duration - fade_in_duration - fade_out_duration))
-	fade_tween.tween_property(bullet, "modulate", Color(1, 1, 1, 0), fade_out_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-
-func _make_attack_bullet(
-	ball_theme: String,
-	glow_theme: String,
-	streak_theme: String,
-	particle_size: float,
-	severity: int
-) -> Control:
-	var bullet := Control.new()
+func _make_attack_bullet(ball_theme: String, particle_size: float) -> Control:
+	var bullet := _make_particle_panel(ball_theme, particle_size)
 	bullet.name = "AttackBullet"
-	bullet.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	var bullet_length := particle_size * (2.2 + float(severity) * 0.28)
-	var bullet_height: float = max(8.0, particle_size * 0.82)
-	bullet.size = Vector2(bullet_length, bullet_height)
-	bullet.pivot_offset = bullet.size / 2.0
-	bullet.scale = Vector2(0.88, 0.88)
-
-	var glow := _make_particle_panel_sized(glow_theme, Vector2(bullet_length * 1.32, bullet_height * 2.2))
-	glow.name = "AttackBulletGlow"
-	glow.position = (bullet.size - glow.size) / 2.0
-	glow.modulate = Color(1, 1, 1, 0.82)
-	bullet.add_child(glow)
-
-	var streak := _make_particle_panel_sized(streak_theme, Vector2(bullet_length * 0.82, max(4.0, bullet_height * 0.42)))
-	streak.name = "AttackBulletStreak"
-	streak.position = Vector2(0, (bullet.size.y - streak.size.y) / 2.0)
-	streak.modulate = Color(1, 1, 1, 0.78)
-	bullet.add_child(streak)
-
-	var core_size := Vector2(particle_size, particle_size)
-	var core := _make_particle_panel_sized(ball_theme, core_size)
-	core.name = "AttackBulletCore"
-	core.position = Vector2(bullet_length - (core_size.x * 0.95), (bullet.size.y - core_size.y) / 2.0)
-	bullet.add_child(core)
-
 	return bullet
 
 func _spawn_attack_path_particle(
@@ -5148,15 +5096,14 @@ func _spawn_attack_path_particle(
 	particle_size: float,
 	tangent: Vector2,
 	wobble: float,
-	wobble_phase: float,
-	is_lead: bool = false
+	wobble_phase: float
 ) -> void:
 	var particle := _make_particle_panel(theme_name, particle_size)
 	particle.position = source - (particle.size / 2.0)
 	particle.modulate = Color(1, 1, 1, 0)
 	add_child(particle)
 
-	var tween := particle.create_tween()
+	var tween := particle.create_tween().bind_node(particle)
 	if delay > 0.0:
 		tween.tween_interval(delay)
 	tween.set_parallel(true)
@@ -5165,16 +5112,8 @@ func _spawn_attack_path_particle(
 		0.0,
 		1.0,
 		duration
-	).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	).set_trans(Tween.TRANS_LINEAR)
 	tween.finished.connect(particle.queue_free)
-
-	var fade_tween := particle.create_tween()
-	if delay > 0.0:
-		fade_tween.tween_interval(delay)
-	var fade_in_duration: float = min(duration * 0.18, 0.12)
-	fade_tween.tween_property(particle, "modulate", Color(1, 1, 1, 1), fade_in_duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	if not is_lead:
-		fade_tween.tween_property(particle, "modulate", Color(1, 1, 1, 0.35), max(0.01, duration - fade_in_duration)).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 func _position_attack_bullet(
 	progress: float,
@@ -5189,10 +5128,10 @@ func _position_attack_bullet(
 	var t: float = clamp(progress, 0.0, 1.0)
 	var accelerated := t * t
 	var point := _quadratic_bezier_vec2(source, control, target, accelerated)
-	var tangent := _quadratic_bezier_tangent_vec2(source, control, target, accelerated)
-	if tangent.length() > 0.0:
-		bullet.rotation = tangent.angle()
 	bullet.position = point - (bullet.size / 2.0)
+	var color := bullet.modulate
+	color.a = min(1.0, t * 5.0) if t < 1.0 else 0.0
+	bullet.modulate = color
 
 func _position_attack_particle(
 	progress: float,
@@ -5212,6 +5151,9 @@ func _position_attack_particle(
 	var point := _quadratic_bezier_vec2(source, control, target, accelerated)
 	var wobble_offset := tangent * (sin(t * PI * 4.0 + wobble_phase) * wobble * sin(t * PI))
 	particle.position = point - (particle.size / 2.0) + wobble_offset
+	var color := particle.modulate
+	color.a = (1.0 - t * 0.65) * min(1.0, t * 8.0) if t > 0.0 and t < 1.0 else 0.0
+	particle.modulate = color
 
 func _quadratic_bezier_vec2(source: Vector2, control: Vector2, target: Vector2, progress: float) -> Vector2:
 	var inverse := 1.0 - progress
@@ -5901,9 +5843,6 @@ func _particle_ball_theme_for_player(player_id: String) -> String:
 
 func _attack_glow_theme_for_ball(ball_theme: String) -> String:
 	return THEME_PANEL_ATTACK_GLOW_SECONDARY if ball_theme == THEME_PANEL_ATTACK_BALL_SECONDARY else THEME_PANEL_ATTACK_GLOW_PRIMARY
-
-func _attack_streak_theme_for_ball(ball_theme: String) -> String:
-	return THEME_PANEL_ATTACK_STREAK_SECONDARY if ball_theme == THEME_PANEL_ATTACK_BALL_SECONDARY else THEME_PANEL_ATTACK_STREAK_PRIMARY
 
 func _make_control_tween(control: Control, channel: String) -> Tween:
 	var key := "%s:%s" % [control.get_instance_id(), channel]

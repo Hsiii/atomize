@@ -100,9 +100,20 @@ func _validate_attack_vfx(main_scene: Node, failures: Array[String]) -> void:
 		failures.append("attack VFX did not spawn AttackBullet")
 		return
 
-	for child_name in ["AttackBulletGlow", "AttackBulletStreak", "AttackBulletCore"]:
-		if bullet_node.find_child(child_name, true, false) == null:
-			failures.append("AttackBullet missing %s" % child_name)
+	var bullet := bullet_node as Control
+	if bullet.size != Vector2(24, 24):
+		failures.append("AttackBullet does not match the web lead-ball size")
+	if bullet.get_child_count() != 0:
+		failures.append("AttackBullet should be a single web-style ball")
+
+	var source := Vector2(0, 100)
+	var control := Vector2(50, 0)
+	var target := Vector2(100, 100)
+	main_scene.call("_position_attack_bullet", 0.5, bullet, source, control, target)
+	var expected_center := Vector2(25, 62.5)
+	var actual_center := bullet.position + bullet.size / 2.0
+	if not actual_center.is_equal_approx(expected_center):
+		failures.append("AttackBullet does not use the web quadratic acceleration curve")
 
 	var flash_node: Node = main_scene.find_child("AttackImpactFlash", true, false)
 	if flash_node == null or not (flash_node is CanvasItem):
