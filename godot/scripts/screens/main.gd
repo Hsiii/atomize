@@ -5,6 +5,8 @@ const BattleRoom := preload("res://scripts/core/multiplayer_room.gd")
 const RealtimeAuthority := preload("res://scripts/core/realtime_authority.gd")
 const SaveManager := preload("res://scripts/core/save_manager.gd")
 const SupabaseClient := preload("res://scripts/core/supabase_client.gd")
+const AuthManager := preload("res://scripts/core/auth_manager.gd")
+const SupabaseNode := preload("res://addons/supabase/Supabase/supabase.gd")
 
 const BATTLE_BOT_ID := "atom-bot"
 const BATTLE_BOT_NAME := "AtomBot"
@@ -461,6 +463,7 @@ var leaderboard_entries: Array[Dictionary] = []
 var leaderboard_status_text := ""
 var save_manager: SaveManager
 var supabase_client: SupabaseClient
+var auth_manager: AuthManager
 var realtime_socket := WebSocketPeer.new()
 var realtime_player_id := ""
 var realtime_ref_counter := 0
@@ -526,6 +529,8 @@ var enemy_hp_label: Label
 var player_hp_bar: ProgressBar
 var player_hp_label: Label
 var player_name_input: LineEdit
+var player_name_status_label: Label
+var player_name_save_button: Button
 
 func _ready() -> void:
 	get_tree().set_quit_on_go_back(false)
@@ -534,6 +539,12 @@ func _ready() -> void:
 	_build_sfx_pool()
 	save_manager = SaveManager.new()
 	supabase_client = SupabaseClient.new()
+	var supabase_node := get_node_or_null("/root/Supabase")
+	if supabase_node == null:
+		supabase_node = SupabaseNode.new()
+		supabase_node.name = "SupabaseTestClient"
+		add_child(supabase_node)
+	auth_manager = AuthManager.new(supabase_node)
 	realtime_player_id = "godot-%s" % Time.get_ticks_usec()
 	battle_player_name = save_manager.load_player_name(_create_guest_display_name())
 	_build_network_nodes()
@@ -570,6 +581,17 @@ func _ready() -> void:
 			_start_battle_game()
 		_:
 			_start_home()
+
+	_restore_supabase_identity()
+
+func _restore_supabase_identity() -> void:
+	var result := await auth_manager.initialize()
+	var restored_name := str(result.get("player_name", ""))
+	if restored_name.is_empty():
+		return
+
+	battle_player_name = save_manager.save_player_name(restored_name)
+	_track_realtime_presence()
 
 func _get_requested_screen() -> String:
 	for argument in OS.get_cmdline_user_args():
@@ -737,7 +759,7 @@ func _send_realtime_join() -> void:
 				"postgres_changes": [],
 				"private": false,
 			},
-			"access_token": supabase_client.anon_key,
+			"access_token": auth_manager.realtime_access_token(supabase_client.anon_key),
 		},
 		realtime_join_ref,
 		realtime_join_ref
@@ -833,7 +855,7 @@ func _send_realtime_room_join() -> void:
 				"postgres_changes": [],
 				"private": false,
 			},
-			"access_token": supabase_client.anon_key,
+			"access_token": auth_manager.realtime_access_token(supabase_client.anon_key),
 		},
 		realtime_room_join_ref,
 		realtime_room_join_ref
@@ -2126,11 +2148,11 @@ func _show_player_name_dialog() -> void:
 	overlay.name = "PlayerNameOverlay"
 	add_child(overlay)
 
-	var panel := _make_dialog_panel(260)
+	var panel := _make_dialog_panel(292)
 	overlay.add_child(panel)
-	_add_dialog_header(panel, "Player")
+	_add_dialog_header(panel, "Claim player name")
 
-	var label := _make_absolute_label("DISPLAY NAME", 12, COLOR_INK_SOFT, 800)
+	var label := _make_absolute_label("USERNAME", 12, COLOR_INK_SOFT, 800)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	label.position = Vector2(14, 76)
 	label.size = Vector2(DIALOG_WIDTH - 28.0, 20)
@@ -2140,7 +2162,7 @@ func _show_player_name_dialog() -> void:
 	player_name_input.text = battle_player_name
 	player_name_input.max_length = SaveManager.PLAYER_NAME_LIMIT
 	player_name_input.placeholder_text = BATTLE_GUEST_NAME
-	player_name_input.accessibility_name = "Display name"
+	player_name_input.accessibility_name = "Username"
 	player_name_input.position = Vector2(14, 104)
 	player_name_input.size = Vector2(DIALOG_WIDTH - 28.0, 44)
 	player_name_input.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -2149,26 +2171,49 @@ func _show_player_name_dialog() -> void:
 	panel.add_child(player_name_input)
 	player_name_input.grab_focus()
 
-	var hint := _make_absolute_label("Shown in battles and leaderboard.", 12, COLOR_INK_SOFT_HINT, 600)
+	var hint := _make_absolute_label("Unique across Atomize. Saved on this device.", 12, COLOR_INK_SOFT_HINT, 600)
 	hint.position = Vector2(14, 154)
 	hint.size = Vector2(DIALOG_WIDTH - 28.0, 20)
 	panel.add_child(hint)
 
+	player_name_status_label = _make_absolute_label("", 12, COLOR_DANGER, 700)
+	player_name_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	player_name_status_label.position = Vector2(14, 178)
+	player_name_status_label.size = Vector2(DIALOG_WIDTH - 28.0, 20)
+	panel.add_child(player_name_status_label)
+
 	var actions := HBoxContainer.new()
-	actions.position = Vector2(12, 196)
+	actions.position = Vector2(12, 228)
 	actions.size = Vector2(DIALOG_WIDTH - 24.0, DIALOG_BUTTON_HEIGHT)
 	actions.add_theme_constant_override("separation", 8)
 	panel.add_child(actions)
 
 	actions.add_child(_make_dialog_action_button("Guest", _clear_player_name_from_dialog, COLOR_SECONDARY))
-	actions.add_child(_make_dialog_action_button("Save", _save_player_name_from_dialog, COLOR_PRIMARY_STRONG))
+	player_name_save_button = _make_dialog_action_button("Claim", _save_player_name_from_dialog, COLOR_PRIMARY_STRONG)
+	actions.add_child(player_name_save_button)
 
 func _save_player_name_from_dialog() -> void:
 	if not is_instance_valid(player_name_input):
 		return
 
-	var saved_name := save_manager.save_player_name(player_name_input.text)
-	battle_player_name = saved_name if not saved_name.is_empty() else _create_guest_display_name()
+	player_name_input.editable = false
+	player_name_save_button.disabled = true
+	player_name_status_label.text = "Claiming..."
+	player_name_status_label.add_theme_color_override("font_color", COLOR_INK_SOFT)
+
+	var result := await auth_manager.claim_player_name(player_name_input.text)
+	if not is_instance_valid(player_name_input):
+		return
+
+	if not bool(result.get("ok", false)):
+		player_name_input.editable = true
+		player_name_save_button.disabled = false
+		player_name_status_label.text = str(result.get("error", "Could not save that player name."))
+		player_name_status_label.add_theme_color_override("font_color", COLOR_DANGER)
+		return
+
+	var saved_name := save_manager.save_player_name(str(result.get("player_name", "")))
+	battle_player_name = saved_name
 	_track_realtime_presence()
 	_start_home()
 
@@ -3957,7 +4002,9 @@ func _load_best_record() -> Dictionary:
 	return save_manager.load_best_record()
 
 func _save_best_score(score: int, max_combo: int) -> bool:
-	return save_manager.save_best_score(score, max_combo)
+	var is_new_best := save_manager.save_best_score(score, max_combo)
+	auth_manager.submit_solo_score(score, max_combo)
+	return is_new_best
 
 func _solo_exp_gained(score: int) -> int:
 	return maxi(0, int(floor(float(score) / 10.0)))

@@ -4,6 +4,9 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { GODOT_DIRECTORY, requireGodotBinary } from './godot-cli';
+import { loadLocalEnv } from './load-local-env';
+
+loadLocalEnv();
 
 const target = process.argv[2];
 const exportsByTarget = {

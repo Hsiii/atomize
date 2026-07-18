@@ -12,6 +12,10 @@ const LOAD_ON_READY : bool = true
 # Set .env file for backup
 const ENVIROMENT_PATH : String = "res://addons/supabase/.env"
 const ENVIRONMENT_VARIABLES : String = "supabase/config"
+const ATOMIZE_URL_SETTING : String = "application/config/supabase_url"
+const ATOMIZE_KEY_SETTING : String = "application/config/supabase_anon_key"
+const ATOMIZE_URL_ENV : String = "VITE_SUPABASE_URL"
+const ATOMIZE_KEY_ENV : String = "VITE_SUPABASE_ANON_KEY"
 
 var auth : SupabaseAuth 
 var database : SupabaseDatabase
@@ -53,6 +57,10 @@ func _load_config() -> void:
 	# Load all config settings from ProjectSettings
 	config.supabaseUrl = ProjectSettings.get_setting("supabase/config/supabase_url", "")
 	config.supabaseKey = ProjectSettings.get_setting("supabase/config/supabase_key", "")
+	if config.supabaseUrl.is_empty():
+		config.supabaseUrl = ProjectSettings.get_setting(ATOMIZE_URL_SETTING, OS.get_environment(ATOMIZE_URL_ENV))
+	if config.supabaseKey.is_empty():
+		config.supabaseKey = ProjectSettings.get_setting(ATOMIZE_KEY_SETTING, OS.get_environment(ATOMIZE_KEY_ENV))
 	# Check if loaded, if not try .env file
 	if config.supabaseKey != "" and config.supabaseUrl != "":
 		pass
@@ -82,4 +90,3 @@ func _load_nodes() -> void:
 
 func _print_debug(msg: String) -> void:
 	if debug: print_debug(msg)
-

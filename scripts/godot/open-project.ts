@@ -2,6 +2,9 @@ import { spawnSync } from 'node:child_process';
 import process from 'node:process';
 
 import { GODOT_DIRECTORY, requireGodotBinary } from './godot-cli';
+import { loadLocalEnv } from './load-local-env';
+
+loadLocalEnv();
 
 const result = spawnSync(requireGodotBinary(), ['--path', GODOT_DIRECTORY], {
     stdio: 'inherit',

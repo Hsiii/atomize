@@ -1,6 +1,7 @@
 extends SceneTree
 
 const SaveManager := preload("res://scripts/core/save_manager.gd")
+const AuthSessionStore := preload("res://scripts/core/auth_session_store.gd")
 
 var failures: Array[String] = []
 
@@ -20,6 +21,7 @@ func _run() -> void:
 	_test_best_record(manager)
 	_test_experience(manager)
 	_test_tutorial_completion(manager)
+	_test_auth_session_store()
 
 	_cleanup(manager)
 
@@ -64,6 +66,22 @@ func _test_tutorial_completion(manager: SaveManager) -> void:
 	_assert_eq(manager.is_tutorial_complete(), false, "tutorial starts incomplete")
 	manager.mark_tutorial_complete()
 	_assert_eq(manager.is_tutorial_complete(), true, "tutorial completion persists")
+
+func _test_auth_session_store() -> void:
+	var store := AuthSessionStore.new("user://atomize-auth-session-test.enc")
+	store.clear_session()
+	var session := {
+		"version": float(AuthSessionStore.SESSION_VERSION),
+		"access_token": "test-access-token-that-is-long-enough",
+		"refresh_token": "test-refresh-token-that-is-long-enough",
+		"token_type": "bearer",
+		"expires_in": 3600.0,
+		"user": {"id": "00000000-0000-0000-0000-000000000001"},
+	}
+	_assert_eq(store.save_session(session), true, "auth session saves encrypted")
+	_assert_eq(store.load_session(), session, "auth session decrypts and loads")
+	store.clear_session()
+	_assert_eq(store.load_session(), {}, "cleared auth session stays cleared")
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:

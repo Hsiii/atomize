@@ -174,6 +174,14 @@ func sign_in_anonymous(data : Dictionary = {}) -> AuthTask:
 	return auth_task
 
 
+# Restore a persisted session by exchanging its refresh token immediately.
+func restore_session(session : Dictionary) -> AuthTask:
+	client = SupabaseUser.new(session)
+	_auth = client.access_token
+	_expires_in = client.expires_in
+	return _request_refresh_token(client.refresh_token)
+
+
 # [     CURRENTLY UNSUPPORTED       ]
 # Sign in with a Provider
 # @provider = Providers.PROVIDER
@@ -266,12 +274,15 @@ func invite_user_by_email(email : String) -> AuthTask:
 # Refresh the access_token of the authenticated client using the refresh_token
 # No need to call this manually except specific needs, since the process will be handled automatically
 func refresh_token(refresh_token : String = client.refresh_token, expires_in : float = client.expires_in) -> AuthTask:
-	await get_tree().create_timer(expires_in - 10).timeout
+	await get_tree().create_timer(maxf(0.0, expires_in - 10.0)).timeout
+	return _request_refresh_token(refresh_token)
+
+func _request_refresh_token(refresh_token : String) -> AuthTask:
 	var payload : Dictionary = {refresh_token = refresh_token}
 	var auth_task : AuthTask = AuthTask.new()._setup(
 		AuthTask.Task.REFRESH,
 		_config.supabaseUrl + _refresh_token_endpoint, 
-		_header + __get_session_header(),
+		_header,
 		JSON.stringify(payload))
 	_process_task(auth_task)
 	return auth_task 
