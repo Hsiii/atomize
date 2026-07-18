@@ -192,6 +192,7 @@ const ICON_PATHS := {
 	"help": "res://assets/icons/help.svg",
 	"menu": "res://assets/icons/menu.svg",
 	"pause": "res://assets/icons/pause.svg",
+	"play": "res://assets/icons/play.svg",
 	"submit": "res://assets/icons/submit.svg",
 	"timer": "res://assets/icons/timer.svg",
 	"trophy": "res://assets/icons/trophy.svg",
@@ -545,6 +546,14 @@ func _ready() -> void:
 	player_experience = _load_experience()
 	needs_tutorial = not _is_tutorial_complete()
 	match _get_requested_screen():
+		"home-first-run":
+			needs_tutorial = true
+			_start_home()
+		"home-menu":
+			needs_tutorial = false
+			_start_home()
+			home_menu_open = true
+			_build_home_layout()
 		"help":
 			_start_help()
 		"tutorial":
@@ -2049,7 +2058,7 @@ func _build_home_layout() -> void:
 	var blob_top := hero_height + 96.0
 
 	if needs_tutorial:
-		var play_button := _make_home_blob_button("Play", _start_tutorial_game, COLOR_PRIMARY_STRONG, "help")
+		var play_button := _make_home_blob_button("Play", _start_tutorial_game, COLOR_PRIMARY_STRONG, "play")
 		play_button.position = Vector2((viewport_size.x - HOME_BLOB_SIZE) / 2.0, blob_top)
 		add_child(play_button)
 		_start_home_blob_idle(play_button, false)
@@ -2166,6 +2175,7 @@ func _show_player_name_dialog() -> void:
 	player_name_input.text = battle_player_name
 	player_name_input.max_length = SaveManager.PLAYER_NAME_LIMIT
 	player_name_input.placeholder_text = BATTLE_GUEST_NAME
+	player_name_input.accessibility_name = "Display name"
 	player_name_input.position = Vector2(14, 104)
 	player_name_input.size = Vector2(DIALOG_WIDTH - 28.0, 44)
 	player_name_input.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -4188,6 +4198,7 @@ func _make_home_title() -> HBoxContainer:
 
 func _make_home_blob_button(text: String, callback: Callable, color: Color, icon_kind: String) -> Button:
 	var button := Button.new()
+	button.accessibility_name = text
 	button.custom_minimum_size = Vector2(HOME_BLOB_SIZE, HOME_BLOB_SIZE)
 	button.size = Vector2(HOME_BLOB_SIZE, HOME_BLOB_SIZE)
 	button.text = ""
@@ -4210,6 +4221,8 @@ func _make_home_blob_button(text: String, callback: Callable, color: Color, icon
 		_add_timer_icon(icon_slot, content_color)
 	elif icon_kind == "battle":
 		_add_battle_icon(icon_slot, content_color)
+	elif icon_kind == "play":
+		_set_or_add_texture_icon(icon_slot, "play", 24, content_color)
 	else:
 		_add_help_icon(icon_slot, content_color)
 
@@ -4242,6 +4255,7 @@ func _start_home_blob_idle(button: Button, starts_raised: bool) -> void:
 
 func _make_home_menu_button() -> Button:
 	var button := Button.new()
+	button.accessibility_name = "Close menu" if home_menu_open else "Menu"
 	button.size = Vector2(HOME_MENU_BUTTON_SIZE, HOME_MENU_BUTTON_SIZE)
 	button.custom_minimum_size = Vector2(HOME_MENU_BUTTON_SIZE, HOME_MENU_BUTTON_SIZE)
 	button.text = ""
@@ -4255,6 +4269,7 @@ func _make_home_menu_button() -> Button:
 
 func _make_home_menu_item(icon_kind: String, tooltip: String, callback: Callable) -> Button:
 	var button := Button.new()
+	button.accessibility_name = tooltip
 	button.text = ""
 	button.tooltip_text = tooltip
 	button.custom_minimum_size = Vector2(48, 48)
@@ -4270,6 +4285,7 @@ func _prefers_reduced_motion() -> bool:
 
 func _make_header_icon_button(text: String, callback: Callable) -> Button:
 	var button := Button.new()
+	button.accessibility_name = "Back" if text == "←" else text
 	button.text = "" if text == "←" else text
 	button.size = Vector2(44, 44)
 	button.custom_minimum_size = Vector2(44, 44)
@@ -4282,6 +4298,7 @@ func _make_header_icon_button(text: String, callback: Callable) -> Button:
 
 func _make_page_back_button(callback: Callable) -> Button:
 	var button := Button.new()
+	button.accessibility_name = "Back"
 	button.text = ""
 	button.size = Vector2(44, 44)
 	button.custom_minimum_size = Vector2(44, 44)
@@ -4293,6 +4310,7 @@ func _make_page_back_button(callback: Callable) -> Button:
 
 func _make_pause_icon_button() -> Button:
 	var button := Button.new()
+	button.accessibility_name = "Pause"
 	button.size = Vector2(44, 44)
 	button.custom_minimum_size = Vector2(44, 44)
 	button.text = ""
@@ -4409,6 +4427,7 @@ func _build_prime_keypad_controls(
 
 	backspace_button = _make_icon_text_button("", COLOR_PRIMARY_STRONG, COLOR_INK, 28, "backspace")
 	backspace_button.name = "BackspaceButton"
+	backspace_button.accessibility_name = "Backspace"
 	backspace_button.custom_minimum_size = Vector2(SOLO_KEY_SIZE, SOLO_KEY_SIZE)
 	_add_delete_icon(backspace_button, SOLO_KEY_SIZE, SOLO_KEY_SIZE, _get_button_text_color(COLOR_PRIMARY_STRONG))
 	backspace_button.pressed.connect(backspace_callback)
@@ -4416,6 +4435,7 @@ func _build_prime_keypad_controls(
 
 	submit_button = _make_icon_text_button("", COLOR_PRIMARY_STRONG, COLOR_INK, 34, "submit")
 	submit_button.name = "SubmitButton"
+	submit_button.accessibility_name = "Submit combo"
 	submit_button.custom_minimum_size = Vector2(SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP)
 	_add_submit_icon(submit_button, SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP, _get_button_text_color(COLOR_PRIMARY_STRONG))
 	submit_button.pressed.connect(submit_callback)
@@ -4457,6 +4477,7 @@ func _animate_tutorial_card(card: Panel) -> void:
 
 func _make_prime_key_button(text: String) -> Button:
 	var button := Button.new()
+	button.accessibility_name = "Prime %s" % text
 	button.text = text
 	button.custom_minimum_size = Vector2(SOLO_KEY_SIZE, SOLO_KEY_SIZE)
 	_apply_button_theme(button, THEME_BUTTON_KEYPAD)
@@ -4495,7 +4516,23 @@ func _make_dialog_panel(height: float) -> Panel:
 	panel.size = Vector2(DIALOG_WIDTH, height)
 	panel.position = Vector2((viewport_size.x - DIALOG_WIDTH) / 2.0, (viewport_size.y - height) / 2.0)
 	_apply_panel_theme(panel, THEME_PANEL_DIALOG)
+	panel.tree_entered.connect(_animate_dialog_panel.bind(panel), CONNECT_ONE_SHOT)
 	return panel
+
+func _animate_dialog_panel(panel: Panel) -> void:
+	if _prefers_reduced_motion():
+		return
+
+	panel.pivot_offset = panel.size / 2.0
+	panel.scale = Vector2(0.96, 0.96)
+	panel.modulate.a = 0.0
+	panel.position.y += 16.0
+	var tween := panel.create_tween().set_parallel(true)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_property(panel, "position:y", panel.position.y - 16.0, 0.3)
+	tween.tween_property(panel, "scale", Vector2.ONE, 0.3)
+	tween.tween_property(panel, "modulate:a", 1.0, 0.2)
 
 func _add_dialog_header(panel: Panel, title: String, header_color: Color = COLOR_PRIMARY) -> void:
 	var header := ColorRect.new()

@@ -5,6 +5,8 @@ import { GODOT_DIRECTORY, requireGodotBinary } from './godot-cli';
 
 const smokeScreens = [
     undefined,
+    'home-first-run',
+    'home-menu',
     'help',
     'tutorial',
     'leaderboard',
