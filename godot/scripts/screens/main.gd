@@ -2187,7 +2187,7 @@ func _show_player_name_dialog() -> void:
 	player_name_input.text = battle_player_name
 	player_name_input.max_length = SaveManager.PLAYER_NAME_LIMIT
 	player_name_input.placeholder_text = BATTLE_GUEST_NAME
-	player_name_input.accessibility_name = "Username"
+	player_name_input.tooltip_text = "Username"
 	player_name_input.position = Vector2(14, 104)
 	player_name_input.size = Vector2(DIALOG_WIDTH - 28.0, 44)
 	player_name_input.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -4282,7 +4282,7 @@ func _make_home_title() -> HBoxContainer:
 
 func _make_home_blob_button(text: String, callback: Callable, color: Color, icon_kind: String) -> Button:
 	var button := Button.new()
-	button.accessibility_name = text
+	button.tooltip_text = text
 	button.custom_minimum_size = Vector2(HOME_BLOB_SIZE, HOME_BLOB_SIZE)
 	button.size = Vector2(HOME_BLOB_SIZE, HOME_BLOB_SIZE)
 	button.text = ""
@@ -4339,7 +4339,7 @@ func _start_home_blob_idle(button: Button, starts_raised: bool) -> void:
 
 func _make_home_menu_button() -> Button:
 	var button := Button.new()
-	button.accessibility_name = "Close menu" if home_menu_open else "Menu"
+	button.tooltip_text = "Close menu" if home_menu_open else "Menu"
 	button.size = Vector2(HOME_MENU_BUTTON_SIZE, HOME_MENU_BUTTON_SIZE)
 	button.custom_minimum_size = Vector2(HOME_MENU_BUTTON_SIZE, HOME_MENU_BUTTON_SIZE)
 	button.text = ""
@@ -4353,7 +4353,7 @@ func _make_home_menu_button() -> Button:
 
 func _make_home_menu_item(icon_kind: String, tooltip: String, callback: Callable) -> Button:
 	var button := Button.new()
-	button.accessibility_name = tooltip
+	button.tooltip_text = tooltip
 	button.text = ""
 	button.custom_minimum_size = Vector2(48, 48)
 	button.flat = true
@@ -4368,7 +4368,7 @@ func _prefers_reduced_motion() -> bool:
 
 func _make_header_icon_button(text: String, callback: Callable) -> Button:
 	var button := Button.new()
-	button.accessibility_name = "Back" if text == "←" else text
+	button.tooltip_text = "Back" if text == "←" else text
 	button.text = "" if text == "←" else text
 	button.size = Vector2(44, 44)
 	button.custom_minimum_size = Vector2(44, 44)
@@ -4381,7 +4381,7 @@ func _make_header_icon_button(text: String, callback: Callable) -> Button:
 
 func _make_page_back_button(callback: Callable) -> Button:
 	var button := Button.new()
-	button.accessibility_name = "Back"
+	button.tooltip_text = "Back"
 	button.text = ""
 	button.size = Vector2(44, 44)
 	button.custom_minimum_size = Vector2(44, 44)
@@ -4393,7 +4393,7 @@ func _make_page_back_button(callback: Callable) -> Button:
 
 func _make_pause_icon_button() -> Button:
 	var button := Button.new()
-	button.accessibility_name = "Pause"
+	button.tooltip_text = "Pause"
 	button.size = Vector2(44, 44)
 	button.custom_minimum_size = Vector2(44, 44)
 	button.text = ""
@@ -4510,7 +4510,7 @@ func _build_prime_keypad_controls(
 
 	backspace_button = _make_icon_text_button("", COLOR_PRIMARY_STRONG, COLOR_INK, 28, "backspace")
 	backspace_button.name = "BackspaceButton"
-	backspace_button.accessibility_name = "Backspace"
+	backspace_button.tooltip_text = "Backspace"
 	backspace_button.custom_minimum_size = Vector2(SOLO_KEY_SIZE, SOLO_KEY_SIZE)
 	_add_delete_icon(backspace_button, SOLO_KEY_SIZE, SOLO_KEY_SIZE, _get_button_text_color(COLOR_PRIMARY_STRONG))
 	backspace_button.pressed.connect(backspace_callback)
@@ -4518,7 +4518,7 @@ func _build_prime_keypad_controls(
 
 	submit_button = _make_icon_text_button("", COLOR_PRIMARY_STRONG, COLOR_INK, 34, "submit")
 	submit_button.name = "SubmitButton"
-	submit_button.accessibility_name = "Submit combo"
+	submit_button.tooltip_text = "Submit combo"
 	submit_button.custom_minimum_size = Vector2(SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP)
 	_add_submit_icon(submit_button, SOLO_KEY_SIZE, (SOLO_KEY_SIZE * 2.0) + SOLO_KEY_GAP, _get_button_text_color(COLOR_PRIMARY_STRONG))
 	submit_button.pressed.connect(submit_callback)
@@ -4560,7 +4560,7 @@ func _animate_tutorial_card(card: Panel) -> void:
 
 func _make_prime_key_button(text: String) -> Button:
 	var button := Button.new()
-	button.accessibility_name = "Prime %s" % text
+	button.tooltip_text = "Prime %s" % text
 	button.text = text
 	button.custom_minimum_size = Vector2(SOLO_KEY_SIZE, SOLO_KEY_SIZE)
 	_apply_button_theme(button, THEME_BUTTON_KEYPAD)
