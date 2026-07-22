@@ -90,6 +90,9 @@ and `supabase/.env*.local`. Never commit a service-role key.
 The CLI exposes its development ports on the host, so use this stack only on a
 trusted network with the host firewall enabled and stop it when finished.
 
+Production provider ownership and capacity boundaries are recorded in
+[`PROVIDERS.md`](PROVIDERS.md).
+
 ## Godot mobile port
 
 The parallel Godot iOS/Android port lives in `godot/`. The Vite app remains the
