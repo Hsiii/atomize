@@ -111,9 +111,11 @@ const SAFE_AREA_PAGE_PADDING := 24.0
 const SOLO_TARGET_SIZE := 272.0
 const SOLO_KEY_SIZE := 84.0
 const SOLO_KEY_GAP := 8.0
-const QUEUE_CHIP_SIZE := 26.0
-const QUEUE_CHIP_GAP := 2.0
-const QUEUE_SEPARATOR_WIDTH := 10.0
+const QUEUE_CHIP_SIZE := 28.0
+const QUEUE_CHIP_GAP := 4.0
+const QUEUE_SEPARATOR_WIDTH := 12.0
+const BATTLE_QUEUE_SLOT_HEIGHT := 48.0
+const BATTLE_QUEUE_CONTROLS_GAP := 12.0
 const SOLO_CONTROL_BOTTOM_MARGIN := 64.0
 const PAGE_HEADER_BOTTOM := 224.0
 const DIALOG_WIDTH := 304.0
@@ -150,6 +152,7 @@ const THEME_PANEL_BADGE_GOLD := "AtomPanelBadgeGold"
 const THEME_PANEL_BADGE_SURFACE := "AtomPanelBadgeSurface"
 const THEME_PANEL_READY_BADGE := "AtomPanelReadyBadge"
 const THEME_PANEL_PARTICLE_PRIMARY := "AtomPanelParticlePrimary"
+const THEME_PANEL_QUEUE_CHIP := "AtomPanelQueueChip"
 const THEME_PANEL_PARTICLE_SECONDARY := "AtomPanelParticleSecondary"
 const THEME_PANEL_PARTICLE_DANGER := "AtomPanelParticleDanger"
 const THEME_PANEL_PARTICLE_GOLD := "AtomPanelParticleGold"
@@ -2907,6 +2910,11 @@ func _build_battle_game_layout() -> void:
 	var safe_top := _safe_area_top()
 	var safe_left := _safe_area_left()
 	var safe_right := _safe_area_right()
+	var controls_height := (SOLO_KEY_SIZE * 3.0) + (SOLO_KEY_GAP * 2.0)
+	var controls_top := viewport_size.y - controls_height - SOLO_CONTROL_BOTTOM_MARGIN - _safe_area_bottom()
+	var queue_top := controls_top - BATTLE_QUEUE_SLOT_HEIGHT - BATTLE_QUEUE_CONTROLS_GAP
+	var player_hp_top := queue_top - 16.0
+	var player_name_top := player_hp_top - 28.0
 
 	var background := ColorRect.new()
 	background.color = COLOR_PAGE_BG
@@ -2959,32 +2967,37 @@ func _build_battle_game_layout() -> void:
 
 	battle_result_text = ""
 	result_label = _make_absolute_label("", 15, COLOR_SECONDARY, 800)
-	result_label.position = Vector2(0, 324.0 + safe_top)
+	result_label.position = Vector2(0, player_name_top - 28.0)
 	result_label.size = Vector2(viewport_size.x, 24)
 	add_child(result_label)
 
 	var player_name_text := "You" if tutorial_active else _battle_local_player_name()
 	var player_name := _make_absolute_label(player_name_text, 15, COLOR_PRIMARY_STRONG, 800)
 	player_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	player_name.position = Vector2(SAFE_AREA_EDGE_PADDING + safe_left, 384.0 + safe_top)
+	player_name.position = Vector2(SAFE_AREA_EDGE_PADDING + safe_left, player_name_top)
 	player_name.size = Vector2(160, 24)
 	add_child(player_name)
 
 	player_hp_label = _make_absolute_label("", 15, COLOR_PRIMARY_STRONG, 800)
 	player_hp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	player_hp_label.position = Vector2(viewport_size.x - 92.0 - safe_right, 384.0 + safe_top)
+	player_hp_label.position = Vector2(viewport_size.x - 92.0 - safe_right, player_name_top)
 	player_hp_label.size = Vector2(80, 24)
 	add_child(player_hp_label)
 
 	player_hp_bar = _make_hp_bar(COLOR_PRIMARY_STRONG)
-	player_hp_bar.position = Vector2(SAFE_AREA_EDGE_PADDING + safe_left, 408.0 + safe_top)
+	player_hp_bar.position = Vector2(SAFE_AREA_EDGE_PADDING + safe_left, player_hp_top)
 	player_hp_bar.size = Vector2(viewport_size.x - (SAFE_AREA_EDGE_PADDING * 2.0) - safe_left - safe_right, 10)
 	add_child(player_hp_bar)
 
+	var queue_slot := CenterContainer.new()
+	queue_slot.name = "BattleQueueSlot"
+	queue_slot.position = Vector2(24.0 + safe_left, queue_top)
+	queue_slot.size = Vector2(viewport_size.x - 48.0 - safe_left - safe_right, BATTLE_QUEUE_SLOT_HEIGHT)
+	queue_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(queue_slot)
+
 	queue_label = _make_queue_panel()
-	queue_label.position = Vector2(24.0 + safe_left, 436.0 + safe_top)
-	queue_label.size = Vector2(viewport_size.x - 48.0 - safe_left - safe_right, 48)
-	add_child(queue_label)
+	queue_slot.add_child(queue_label)
 
 	var controls := _build_prime_keypad_controls(_queue_battle_prime, _backspace_battle_queue, _submit_battle_queue)
 	_animate_game_layout_entry(target_blob, controls)
@@ -4133,6 +4146,7 @@ func _make_app_theme() -> Theme:
 	_add_panel_theme(app_theme, THEME_PANEL_BADGE_SURFACE, "Panel", _make_button_style(COLOR_SURFACE))
 	_add_panel_theme(app_theme, THEME_PANEL_READY_BADGE, "Panel", _make_pixel_box_style(COLOR_SURFACE, COLOR_PRIMARY, PIXEL_BORDER, RADIUS_PILL, true))
 	_add_panel_theme(app_theme, THEME_PANEL_PARTICLE_PRIMARY, "Panel", _make_pixel_box_style(COLOR_PRIMARY_STRONG, Color.TRANSPARENT, 0, RADIUS_PILL))
+	_add_panel_theme(app_theme, THEME_PANEL_QUEUE_CHIP, "Panel", _make_pixel_circle_style(COLOR_PRIMARY_STRONG, Color.TRANSPARENT, 0))
 	_add_panel_theme(app_theme, THEME_PANEL_PARTICLE_SECONDARY, "Panel", _make_pixel_box_style(COLOR_SECONDARY, Color.TRANSPARENT, 0, RADIUS_PILL))
 	_add_panel_theme(app_theme, THEME_PANEL_PARTICLE_DANGER, "Panel", _make_pixel_box_style(COLOR_DANGER, Color.TRANSPARENT, 0, RADIUS_PILL))
 	_add_panel_theme(app_theme, THEME_PANEL_PARTICLE_GOLD, "Panel", _make_pixel_box_style(COLOR_GOLD, Color.TRANSPARENT, 0, RADIUS_PILL))
@@ -6479,10 +6493,13 @@ func _render_queue_panel(numbers: Array) -> void:
 
 func _make_queue_chip(text: String, is_pending: bool) -> Panel:
 	var chip := Panel.new()
+	chip.name = "QueueChip"
 	chip.custom_minimum_size = Vector2(QUEUE_CHIP_SIZE, QUEUE_CHIP_SIZE)
+	chip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	chip.modulate.a = 0.5 if is_pending else 1.0
-	_apply_panel_theme(chip, THEME_PANEL_PARTICLE_PRIMARY)
+	_apply_panel_theme(chip, THEME_PANEL_QUEUE_CHIP)
 
 	var label := _make_absolute_label(text, 12, COLOR_TEXT_INVERSE, 700)
 	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

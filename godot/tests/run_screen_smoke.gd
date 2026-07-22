@@ -3,6 +3,7 @@ extends SceneTree
 const MAIN_SCENE := preload("res://scenes/Main.tscn")
 const Game := preload("res://scripts/core/game.gd")
 const SCREEN_ARG_PREFIX := "--atomize-screen="
+const QUEUE_CHIP_MIN_RADIUS := 14.0
 
 func _init() -> void:
 	call_deferred("_run")
@@ -60,6 +61,7 @@ func _validate_screen(main_scene: Node, screen_name: String) -> Array[String]:
 	if label == "battle-game":
 		_validate_attack_vfx(main_scene, failures)
 		_validate_battle_emotion_vfx(main_scene, failures)
+		_validate_battle_queue_layout(main_scene, failures)
 
 	return failures
 
@@ -173,6 +175,31 @@ func _validate_battle_emotion_vfx(main_scene: Node, failures: Array[String]) -> 
 	for node_name in ["HealPulse", "HealMote", "FaultShard", "PerfectHalo", "PerfectOrbitMote", "BattleHitFlash"]:
 		if main_scene.find_child(node_name, true, false) == null:
 			failures.append("battle emotion VFX did not spawn %s" % node_name)
+
+func _validate_battle_queue_layout(main_scene: Node, failures: Array[String]) -> void:
+	var queue_slot := main_scene.find_child("BattleQueueSlot", true, false) as CenterContainer
+	var controls := main_scene.find_child("PrimeControls", true, false) as Control
+	if queue_slot == null:
+		failures.append("battle queue is missing its reserved slot")
+		return
+	if controls == null:
+		failures.append("battle queue could not validate keypad spacing")
+		return
+	if queue_slot.position.y + queue_slot.size.y > controls.position.y:
+		failures.append("battle queue overlaps the keypad controls")
+
+	main_scene.call("_render_queue_panel", [2, 3, 5])
+	var chip := main_scene.find_child("QueueChip", true, false) as Panel
+	if chip == null:
+		failures.append("battle queue did not render a queue chip")
+		return
+	if chip.custom_minimum_size.x != chip.custom_minimum_size.y:
+		failures.append("battle queue chip is not square")
+	if chip.size_flags_vertical != Control.SIZE_SHRINK_CENTER:
+		failures.append("battle queue chip can stretch out of its round shape")
+	var chip_style := chip.get_theme_stylebox("panel") as StyleBoxFlat
+	if chip_style == null or chip_style.corner_radius_top_left < int(QUEUE_CHIP_MIN_RADIUS):
+		failures.append("battle queue chip is not rounded")
 
 func _expect_minimum_controls(
 	main_scene: Node,
